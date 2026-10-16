@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Safe to rerun at any time: every step must skip work that is already done.
+# System tools are checked, never installed, so this script cannot change the
+# machine outside the project. Exit code 2 means a system prerequisite is missing;
+# the install skill relies on that to offer installing it.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+MISSING_PREREQUISITE=2
+
+step() { printf '\n==> %s\n' "$1"; }
+
+fail() {
+  printf '\nSetup stopped: %s\n' "$1" >&2
+  exit "${2:-1}"
+}
+
+require() {
+  local tool="$1" install_hint="$2"
+  command -v "$tool" >/dev/null 2>&1 ||
+    fail "$tool is not installed. Install it with: $install_hint" "$MISSING_PREREQUISITE"
+}
+
+step "Checking prerequisites"
+{{PREREQUISITE_CHECKS}}
+
+step "Installing dependencies"
+{{DEPENDENCY_INSTALL_COMMANDS}}
+
+step "Verifying"
+{{VERIFY_COMMANDS}}
+
+printf '\nSetup complete.\n'
