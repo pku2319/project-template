@@ -23,7 +23,8 @@ Whenever setup needed something the script did not do, change the script so the 
 2. Rerun `bin/setup` from the start and confirm it passes.
 3. If the fix cannot be scripted (an account to request, a secret to obtain), add it to "Manual steps" below and to the Installation section of `README.md`.
 4. If the failure was confusing, add the symptom and the fix to "Troubleshooting" below.
-5. Commit the script and doc changes together.
+5. If the fix involved a choice (a version, a tool, a workaround over the obvious approach), add a dated entry to `decision_log.txt` next to this file saying what was chosen and why.
+6. Commit the script and doc changes together.
 
 Apply the same steps when setup changes on purpose: a new dependency, tool, environment variable or version bump is not done until `bin/setup` handles it.
 
@@ -35,8 +36,6 @@ Apply the same steps when setup changes on purpose: a new dependency, tool, envi
 
 None recorded yet.
 
-## How this project was created
+## Decision log
 
-A record of the original setup, kept so future upgrades know what was chosen and why.
-
-{{CREATION_LOG}}
+`decision_log.txt` next to this file records why setup is the way it is, starting with how the project was created. Read it before changing a version or swapping a tool, so you do not undo a deliberate choice.

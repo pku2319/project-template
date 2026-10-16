@@ -48,7 +48,7 @@ Ask one step at a time, in the order below, and wait for the answer before movin
 3. **Install the stack in place.** Run the generator or init command inside the current folder (`uv init .`, `npm create vite@latest .`, `rails new .`, and so on), because many generators otherwise create a nested folder or a nested git repo. Pin the chosen versions in the files the ecosystem expects (`.python-version`, `.tool-versions`, `.nvmrc`, `engines`, `.ruby-version`, `go.mod`).
 4. **Make sure `.gitignore` exists** and covers dependency folders, virtual environments, build output, env files and OS files before the first commit. Use the generator's file if it made one and extend it if needed.
 5. **Verify it runs.** Start the app or run the hello world entry point once and confirm the output. Fix problems now; a broken first commit poisons everything after it.
-6. Keep a running log of every command you ran, every choice made and why. Phase 3 turns it into `bin/setup` and the install skill.
+6. Keep a running log of every command you ran, every choice made and why. Phase 3 turns it into `bin/setup` and the decision log.
 7. Commit: `git add -A && git commit -m "Install <stack summary>"`, listing the versions in the body.
 
 ## Phase 3: AGENTS.md, bin/setup, install skill and README
@@ -76,7 +76,9 @@ Then prove it from a clean state: remove what the script creates (`.venv`, `node
 When Ruby is managed by asdf, add `bin/update-ruby` (`chmod +x`), which upgrades Ruby the way that works with the asdf ruby plugin (see `references/stacks.md`). With no argument it installs the version in `.tool-versions`; with a version argument it also updates every pin (`.tool-versions`, `.ruby-version`, the `RUBY_VERSION` argument in `Dockerfile` if present) and runs `bundle install`. Before `asdf plugin remove ruby` it lists the Rubies that removal will uninstall and asks for confirmation (`--yes` skips the prompt), and at the end it prints the command to reinstall them. Exit early with a clear message if asdf is missing. Run it once with `--help` to confirm it works, document it in the README's Other Commands, and point to it from `bin/setup` (in the message when the pinned Ruby cannot be installed) and from the install skill's Troubleshooting.
 
 ### Install skill
-Copy `templates/install-skill/SKILL.md` to `.claude/skills/install/SKILL.md` and fill it in. Most of it is fixed text about running and maintaining `bin/setup`; fill the placeholders, and put the literal history from the phase 2 log in "How this project was created": the generator command, versions chosen and why.
+Copy `templates/install-skill/SKILL.md` to `.claude/skills/install/SKILL.md` and fill it in. Most of it is fixed text about running and maintaining `bin/setup`.
+
+Copy `templates/install-skill/decision_log.txt` next to it and fill the first entry from the phase 2 log: the generator command, versions chosen and why, tools picked over the alternatives offered, and any workaround needed. Keeping this history out of `SKILL.md` means the skill stays short instructions while the log can grow over the life of the project.
 
 ### README.md
 If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: `/install` in Claude Code, and running `bin/setup` directly for people not using Claude.
@@ -89,7 +91,7 @@ Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bi
 2. **Install and configure** each tool as a development dependency, with config in the conventional place.
 3. **Add one real example test per category** (a unit test of the hello world code, an e2e test that loads the app or runs the CLI) so every command proves it works. Fix any lint errors the linter reports in the generated code.
 4. **Wire up commands** using the stack's task runner from `references/stacks.md`. The required set is: lint, auto fix, unit, e2e, coverage, `check` (everything except e2e) and `check:all` or equivalent (everything including e2e). Run every one of them and confirm each passes. Do not claim a command works without having run it.
-5. **Update bin/setup and the install skill**: add anything the testing tools need to `bin/setup` (browser binaries for Playwright, for example), and make its verify step run `check`. Rerun it from a clean state as in phase 3. Record the testing choices in the install skill's "How this project was created".
+5. **Update bin/setup and the install skill**: add anything the testing tools need to `bin/setup` (browser binaries for Playwright, for example), and make its verify step run `check`. Rerun it from a clean state as in phase 3. Add a dated entry for the testing choices to `.claude/skills/install/decision_log.txt`, including any category the user skipped and why.
 6. **Update AGENTS.md**: append `templates/AGENTS.testing.md` filled in, between Installation and Commenting.
 7. **Update README.md**: fill the Testing section with the commands.
 8. Run the placeholder grep, then commit: `git commit -m "Add testing suite"`.

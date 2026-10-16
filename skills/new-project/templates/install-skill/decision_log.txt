@@ -1,0 +1,9 @@
+Setup decision log for {{PROJECT_NAME}}
+
+Each entry records a decision about how this project is set up and why, so
+future upgrades can tell deliberate choices from accidents. Add new entries at
+the bottom, dated, and never rewrite old ones: if a decision is reversed, add an
+entry saying so.
+
+{{CREATION_DATE}}  Project created
+{{CREATION_LOG}}
