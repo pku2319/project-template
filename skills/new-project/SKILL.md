@@ -45,7 +45,7 @@ Ask one step at a time, in the order below, and wait for the answer before movin
 
 1. `mkdir -p <path> && cd <path> && git init`. Work from this directory for everything after this point.
 2. **Install the approved system tools** from the plan, if any.
-3. **Install the stack in place.** Run the generator or init command inside the current folder (`uv init .`, `npm create vite@latest .`, `rails new . --skip-git`, and so on), because many generators otherwise create a nested folder or a nested git repo. Pin the chosen versions in the files the ecosystem expects (`.python-version`, `.tool-versions`, `.nvmrc`, `engines`, `.ruby-version`, `go.mod`).
+3. **Install the stack in place.** Run the generator or init command inside the current folder (`uv init .`, `npm create vite@latest .`, `rails new .`, and so on), because many generators otherwise create a nested folder or a nested git repo. Pin the chosen versions in the files the ecosystem expects (`.python-version`, `.tool-versions`, `.nvmrc`, `engines`, `.ruby-version`, `go.mod`).
 4. **Make sure `.gitignore` exists** and covers dependency folders, virtual environments, build output, env files and OS files before the first commit. Use the generator's file if it made one and extend it if needed.
 5. **Verify it runs.** Start the app or run the hello world entry point once and confirm the output. Fix problems now; a broken first commit poisons everything after it.
 6. Keep a running log of every command you ran, every choice made and why. Phase 3 turns it into `bin/setup` and the install skill.
@@ -71,6 +71,9 @@ Copy `templates/bin/setup` to `bin/setup` (`chmod +x`) and fill it from the phas
 - **Verify**: a fast command that proves the install works (import the package, run the CLI with `--help`, boot the app and hit it once).
 
 Then prove it from a clean state: remove what the script creates (`.venv`, `node_modules`, and so on), run `bin/setup`, and confirm it passes. Run it a second time to confirm it is idempotent.
+
+### bin/update-ruby (Ruby projects on asdf)
+When Ruby is managed by asdf, add `bin/update-ruby` (`chmod +x`), which upgrades Ruby the way that works with the asdf ruby plugin (see `references/stacks.md`). With no argument it installs the version in `.tool-versions`; with a version argument it also updates every pin (`.tool-versions`, `.ruby-version`, the `RUBY_VERSION` argument in `Dockerfile` if present) and runs `bundle install`. Before `asdf plugin remove ruby` it lists the Rubies that removal will uninstall and asks for confirmation (`--yes` skips the prompt), and at the end it prints the command to reinstall them. Exit early with a clear message if asdf is missing. Run it once with `--help` to confirm it works, document it in the README's Other Commands, and point to it from `bin/setup` (in the message when the pinned Ruby cannot be installed) and from the install skill's Troubleshooting.
 
 ### Install skill
 Copy `templates/install-skill/SKILL.md` to `.claude/skills/install/SKILL.md` and fill it in. Most of it is fixed text about running and maintaining `bin/setup`; fill the placeholders, and put the literal history from the phase 2 log in "How this project was created": the generator command, versions chosen and why.

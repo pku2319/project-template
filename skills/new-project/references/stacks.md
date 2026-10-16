@@ -19,7 +19,9 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 - **Task runner**: `package.json` scripts (`lint`, `fix`, `test`, `test:e2e`, `coverage`, `check`, `check:all`).
 
 ## Ruby and Rails
-- **Build and env**: Bundler; Ruby via their manager (asdf, rbenv, mise) with `.ruby-version` or `.tool-versions`. Rails: `rails new . --skip-git` plus the database flag they chose. Rails generates its own `bin/setup`; merge the template into it.
+- **Build and env**: Bundler; Ruby via their manager (asdf, rbenv, mise) with `.ruby-version` or `.tool-versions`. Rails: `rails new .` plus the database flag they chose; omit `--skip-git`, which also skips `.gitignore`, and let it rerun `git init` harmlessly. Rails generates its own `bin/setup`; merge the template into it.
+- **asdf and new Ruby releases**: the asdf ruby plugin keeps its own copy of ruby-build at `~/.asdf/plugins/ruby/ruby-build`. Homebrew does not manage it (`brew upgrade ruby-build` reports it is not installed), and `asdf plugin update ruby` alone may not make a new Ruby appear in `asdf list all ruby`. The fix that works is `asdf plugin remove ruby && asdf plugin add ruby`, then `asdf install ruby <version>`. Warn first: removing the plugin uninstalls every Ruby it installed, so other projects need `asdf install` afterwards. When the project uses asdf for Ruby, generate `bin/update-ruby` in phase 3 (see SKILL.md) and mention this in `bin/setup`, the install skill and the README.
+- **Shared `GEM_HOME`**: if the shell sets `GEM_HOME` (for example `~/.gem`), every Ruby shares one gem folder and Bundler prints "missing extensions" warnings for gems built under an older Ruby. They are harmless; mention them in the install skill's Troubleshooting rather than changing the user's shell config.
 - **Lint and format**: RuboCop (`rubocop-rails-omakase` comes with Rails 7.2 and later).
 - **Unit**: Minitest for Rails by default; RSpec if they prefer.
 - **E2e**: Capybara system tests (Rails includes them) with Selenium or Cuprite.
