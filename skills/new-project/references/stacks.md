@@ -21,11 +21,37 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 ## Ruby and Rails
 - **Build and env**: Bundler; Ruby via their manager (asdf, rbenv, mise) with `.ruby-version` or `.tool-versions`. Rails: `rails new .` plus the database flag they chose; omit `--skip-git`, which also skips `.gitignore`, and let it rerun `git init` harmlessly. Rails generates its own `bin/setup`; merge the template into it.
 - **asdf and new Ruby releases**: the asdf ruby plugin keeps its own copy of ruby-build at `~/.asdf/plugins/ruby/ruby-build`. Homebrew does not manage it (`brew upgrade ruby-build` reports it is not installed), and `asdf plugin update ruby` alone may not make a new Ruby appear in `asdf list all ruby`. The fix that works is `asdf plugin remove ruby && asdf plugin add ruby`, then `asdf install ruby <version>`. Warn first: removing the plugin uninstalls every Ruby it installed, so other projects need `asdf install` afterwards. When the project uses asdf for Ruby, generate `bin/update-ruby` in phase 3 (see SKILL.md) and mention this in `bin/setup`, the install skill and the README.
-- **Lint and format**: RuboCop (`rubocop-rails-omakase` comes with Rails 7.2 and later).
+- **Lint and format**: RuboCop (`rubocop-rails-omakase` comes with Rails 7.2 and later), plus `rubocop-rspec` when the project uses RSpec. Whatever else is chosen, `.rubocop.yml` must include the rules in "RuboCop rules for every Ruby project" below.
 - **Unit**: Minitest for Rails by default; RSpec if they prefer.
 - **E2e**: Capybara system tests (Rails includes them) with Selenium or Cuprite.
 - **Coverage**: SimpleCov.
-- **Task runner**: Rake tasks or `bin/` scripts.
+- **Task runner**: Rails apps use `bin/rails`, which also runs every Rake task (`bin/rails test`, `bin/rails lint`, `bin/rails check`); define custom tasks in `lib/tasks/*.rake` and invoke them through `bin/rails`, not `rake`. Plain Ruby projects without Rails have no `rails` command, so they use Rake (`bundle exec rake <task>`) or `bin/` scripts.
+
+### RuboCop rules for every Ruby project
+Unlike the rest of this file, these are not starting points: add them to every Ruby project's `.rubocop.yml`, after any `inherit_gem` entry (such as `rubocop-rails-omakase`) so they take precedence. Leave one out only if the user explicitly asks for a different style.
+
+```yaml
+Style/Documentation:
+  Enabled: false
+
+Style/TrailingCommaInArrayLiteral:
+  EnforcedStyleForMultiline: consistent_comma
+
+Style/TrailingCommaInHashLiteral:
+  EnforcedStyleForMultiline: consistent_comma
+
+Style/TrailingCommaInArguments:
+  EnforcedStyleForMultiline: consistent_comma
+```
+
+When the project uses RSpec, also add `rubocop-rspec` to the `Gemfile`'s development group and load it at the top of `.rubocop.yml`:
+
+```yaml
+plugins:
+  - rubocop-rspec
+```
+
+Run `rubocop --autocorrect-all` after adding them so the generated code already follows them before the testing suite commit.
 
 ## Go
 - **Build and env**: Go modules (`go mod init <module path>`), Go version in `go.mod` and `toolchain` directive.
