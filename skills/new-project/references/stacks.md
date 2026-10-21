@@ -4,6 +4,7 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 
 ## Python
 - **Build and env**: uv (`uv init .`, `uv python pin <version>`, `uv add`, `uv add --dev`). uv installs Python itself, so no separate version manager is needed.
+- **Release age**: pass `--exclude-newer "3 days"` to `uv add` and `uv lock`. Older uv versions only accept a timestamp, so give the moment 3 days before now in RFC 3339 form.
 - **Lint and format**: ruff (`ruff check`, `ruff format`), config in `pyproject.toml`.
 - **Unit**: pytest, tests in `tests/`.
 - **E2e**: Playwright for Python (`pytest-playwright`, then `uv run playwright install chromium`) for web apps; for CLIs, pytest driving the console script through `subprocess`.
@@ -12,6 +13,7 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 
 ## JavaScript and TypeScript
 - **Build and env**: ask which package manager (npm, pnpm, bun). Node version via whatever manager they use (asdf `.tool-versions`, mise, nvm `.nvmrc`), plus `engines` in `package.json`. Prefer TypeScript unless told otherwise.
+- **Release age**: npm 11.10 or later takes `--min-release-age=3` (days). pnpm 10.16 or later takes `minimumReleaseAge: 4320` (minutes) in `pnpm-workspace.yaml`. Bun 1.3 or later takes `minimumReleaseAge = 259200` (seconds) under `[install]` in `bunfig.toml`. On older versions, upgrade the package manager first or check publish dates with `npm view <package> time`.
 - **Lint and format**: ESLint (flat config) with Prettier, or Biome if they prefer one tool.
 - **Unit**: Vitest (Jest only for an existing Jest ecosystem such as some React Native setups).
 - **E2e**: Playwright (`@playwright/test`, `npx playwright install`).
@@ -20,6 +22,7 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 
 ## Ruby and Rails
 - **Build and env**: Bundler; Ruby via their manager (asdf, rbenv, mise) with `.ruby-version` or `.tool-versions`. Rails: `rails new .` plus the database flag they chose; omit `--skip-git`, which also skips `.gitignore`, and let it rerun `git init` harmlessly. Rails generates its own `bin/setup`; merge the template into it.
+- **Release age**: Bundler 4.0.13 or later supports a cooldown; set `BUNDLE_COOLDOWN=3` for every Bundler command in the run, including the `bundle install` that `rails new` runs. On older Bundler, update it first (`gem update --system`). For the `rails` gem itself and anything installed with `gem install`, check `https://rubygems.org/api/v1/versions/<gem>.json` for `created_at` and pass `-v <version>`.
 - **asdf and new Ruby releases**: the asdf ruby plugin keeps its own copy of ruby-build at `~/.asdf/plugins/ruby/ruby-build`. Homebrew does not manage it (`brew upgrade ruby-build` reports it is not installed), and `asdf plugin update ruby` alone may not make a new Ruby appear in `asdf list all ruby`. The fix that works is `asdf plugin remove ruby && asdf plugin add ruby`, then `asdf install ruby <version>`. Warn first: removing the plugin uninstalls every Ruby it installed, so other projects need `asdf install` afterwards. When the project uses asdf for Ruby, generate `bin/update-ruby` in phase 3 (see SKILL.md) and mention this in `bin/setup`, the install skill and the README.
 - **Lint and format**: RuboCop (`rubocop-rails-omakase` comes with Rails 7.2 and later), plus `rubocop-rspec` when the project uses RSpec. Whatever else is chosen, `.rubocop.yml` must include the rules in "RuboCop rules for every Ruby project" below.
 - **Unit**: Minitest for Rails by default; RSpec if they prefer.
@@ -55,6 +58,7 @@ Run `rubocop --autocorrect-all` after adding them so the generated code already 
 
 ## Go
 - **Build and env**: Go modules (`go mod init <module path>`), Go version in `go.mod` and `toolchain` directive.
+- **Release age**: Go has no setting for this. After `go get`, read each new module's publish time from `https://proxy.golang.org/<module>/@v/<version>.info` and pin back with `go get <module>@<version>` where it is under 3 days old.
 - **Lint and format**: golangci-lint, gofmt.
 - **Unit**: `go test ./...` with the standard library.
 - **E2e**: `go test` with a build tag (`//go:build e2e`) that drives the built binary or HTTP server; Playwright if there is a web UI.
@@ -63,6 +67,7 @@ Run `rubocop --autocorrect-all` after adding them so the generated code already 
 
 ## Rust
 - **Build and env**: Cargo, toolchain pinned in `rust-toolchain.toml`.
+- **Release age**: Cargo has no stable setting for this. Check `https://crates.io/api/v1/crates/<crate>/versions` for `created_at` and pin back with `cargo add <crate>@=<version>` or `cargo update -p <crate> --precise <version>`.
 - **Lint and format**: clippy, rustfmt.
 - **Unit**: `cargo test`.
 - **E2e**: integration tests in `tests/` with `assert_cmd` for CLIs.

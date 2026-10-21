@@ -23,6 +23,15 @@ Templates contain `{{UPPER_SNAKE}}` placeholders. Fill every one with real, proj
 
 Write all generated text in line with the Communication Style section of the AGENTS.md template: no coined hyphenated compound modifiers, plain prose instead.
 
+## Release age
+
+Never choose or install a release that was published less than 3 days ago. Compromised versions of popular packages are usually reported and yanked within a few days, so waiting that long avoids most of them. This covers language and framework versions, generator packages (`create-vite`, the `rails` gem), and every library installed in phases 2 and 4, including indirect dependencies the package manager resolves.
+
+- Turn on the package manager's own release age setting for every install command in this run; `references/stacks.md` lists it per stack. Where the stack has no such setting, look up the publish date of each newly added package and pin back to the newest release that is at least 3 days old.
+- Never pull a generator with `@latest` or an unpinned `gem install`; name a version that is at least 3 days old.
+- When the newest release is held back, say so in the plan and record it in the decision log, with the version used instead and the date it becomes eligible.
+- If a package has no release old enough, or the newer one fixes a security problem the user needs, stop and ask rather than overriding the setting quietly.
+
 ## Phase 1: Gather requirements
 
 Every question for the whole run is asked here, so that once the user approves the plan, phases 2 to 4 run to the end without waiting on them. Only stop later for something truly unexpected that the plan cannot answer, such as a generator failing in a way that forces a different choice.
@@ -35,11 +44,12 @@ Ask one step at a time, in the order below, and wait for the answer before movin
 4. **Versions.** Only offer versions that are currently officially supported, because starting a project on something near end of life creates an upgrade chore on day one. Look them up rather than relying on memory:
    - `curl -s https://endoflife.date/api/<product>.json` (for example `python`, `nodejs`, `ruby`, `rails`, `django`, `go`, `react`, `postgresql`). A cycle is supported if its `eol` is `false` or a date after today.
    - If the product is not on endoflife.date, check its official release or download page.
+   - Within each cycle, offer the newest release that is at least 3 days old (see Release age). endoflife.date gives `latestReleaseDate`; if that is too recent, check the release page for the previous patch release.
    - Offer the newest stable cycle as the recommended option, plus the other supported cycles. Point out compatibility constraints between pieces (for example a framework release that needs a minimum language version) and anything brand new enough that libraries may lag.
 5. **Build tools.** Read `references/stacks.md` for the stack. Ask any choice it leaves open (for example which JavaScript package manager).
 6. **Testing tools.** Go through the categories one at a time: linting and formatting, then unit and integration testing, then e2e testing, then coverage. For each, propose the default from `references/stacks.md` marked as recommended. The user may skip a category (for example no e2e for a library); note the reason, since AGENTS.md records it later so nobody wonders whether it was forgotten.
 7. **System tools.** Check which version managers and build tools already exist (`which uv asdf mise nvm rbenv pnpm bun`, `asdf current`, and so on) and plan to use what the user already has. List anything missing at the system level (for example `brew install uv`) and get approval to install it now, since that changes their machine rather than the project. Include tools that only the testing suite needs.
-8. **Plan.** Summarize everything: path, stack, versions, build tools, testing tools, system installs, and the three commits that will be made. Get a single go ahead before touching the filesystem.
+8. **Plan.** Summarize everything: path, stack, versions (noting any release held back for being under 3 days old), build tools, testing tools, system installs, and the three commits that will be made. Get a single go ahead before touching the filesystem.
 
 ## Phase 2: Create and install the stack
 
