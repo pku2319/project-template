@@ -91,7 +91,7 @@ Copy `templates/install-skill/SKILL.md` to `.claude/skills/install/SKILL.md` and
 Copy `templates/install-skill/decision_log.txt` next to it and fill the first entry from the phase 2 log: the generator command, versions chosen and why, tools picked over the alternatives offered, and any workaround needed. Keeping this history out of `SKILL.md` means the skill stays short instructions while the log can grow over the life of the project.
 
 ### README.md
-If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: `/install` in Claude Code, and running `bin/setup` directly for people not using Claude.
+If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: `/install` in Claude Code, and running `bin/setup` directly for people not using Claude. Keep the "Built using skill project-template" line at the very bottom, below any sections added later.
 
 Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bin/setup and install skill"`.
 
