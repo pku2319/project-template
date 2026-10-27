@@ -12,6 +12,16 @@
 
 Run `{{CHECK_COMMAND}}` before every commit. Run `{{CHECK_ALL_COMMAND}}` before opening a pull request or after changing anything the e2e tests touch.
 
+## Writing Tests
+
+Confirm every new test fails without the change it covers. Run it before making the change, or revert the change and run it again. A test that passes either way proves nothing.
+
+Cover the edge cases, not only the expected path:
+
+- Empty values: nil or null, 0, empty strings and empty collections.
+- The boundary of the change: the inputs just inside and just outside where the new behavior starts and stops.
+- Unexpected input: the wrong type, malformed data and values out of range.
+
 ## Linting and Formatting
 
 {{LINT_TOOL_AND_CONFIG}}
