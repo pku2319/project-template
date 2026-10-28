@@ -6,9 +6,9 @@
 
 Setup is handled by `bin/setup`, which checks for {{TOOLCHAIN_SHORT}}, installs dependencies and runs a quick check. It is safe to rerun at any time.
 
-### With Claude Code (recommended)
+### With a coding agent (recommended)
 
-Open this folder in Claude Code and run:
+Open this folder in a coding agent that supports skills and ask it to run the install skill. In Claude Code, run:
 
 ```
 /install

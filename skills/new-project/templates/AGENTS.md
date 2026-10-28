@@ -8,7 +8,7 @@ Do not coin hyphenated compound modifiers or compress feature descriptions into 
 
 # Installation
 
-`bin/setup` installs everything needed for local development and is safe to rerun. The install skill at `.claude/skills/install/SKILL.md` (run `/install` in Claude Code) wraps it and keeps it current. Whenever setup changes, such as a new tool, a dependency, a version bump or a new environment variable, update `bin/setup` in the same change, following the install skill, and rerun it to confirm it passes.
+`bin/setup` installs everything needed for local development and is safe to rerun. The install skill at `.agents/skills/install/SKILL.md` wraps it and keeps it current. `.claude/skills/install` is a link to the same folder so Claude Code finds it too; edit the files under `.agents/`. Whenever setup changes, such as a new tool, a dependency, a version bump or a new environment variable, update `bin/setup` in the same change, following the install skill, and rerun it to confirm it passes.
 
 ## Toolchain
 

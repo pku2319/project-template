@@ -19,7 +19,7 @@ The run is long, so the user should always know where they are and how much is l
 
 ## Placeholders
 
-Templates contain `{{UPPER_SNAKE}}` placeholders. Fill every one with real, project specific content. A placeholder you cannot fill means phase 1 missed a question: ask rather than guess, then add that question to phase 1 of this skill so future runs gather it up front. Before each commit, run `grep -rn '{{' AGENTS.md README.md bin/setup .claude/` in the project (skip any file not created yet); it must return nothing.
+Templates contain `{{UPPER_SNAKE}}` placeholders. Fill every one with real, project specific content. A placeholder you cannot fill means phase 1 missed a question: ask rather than guess, then add that question to phase 1 of this skill so future runs gather it up front. Before each commit, run `grep -rn '{{' AGENTS.md README.md bin/setup .agents/` in the project (skip any file not created yet); it must return nothing.
 
 Write all generated text in line with the Communication Style section of the AGENTS.md template: no coined hyphenated compound modifiers, plain prose instead.
 
@@ -40,7 +40,7 @@ Never choose or install a release that was published less than 3 days ago. Compr
 
 Every question for the whole run is asked here, so that once the user approves the plan, phases 2 to 4 run to the end without waiting on them. Only stop later for something truly unexpected that the plan cannot answer, such as a generator failing in a way that forces a different choice.
 
-Ask one step at a time, in the order below, and wait for the answer before moving on. Later steps depend on earlier answers (versions depend on the stack, testing defaults depend on the build tools), and a single question is easier to think about than a form. Use AskUserQuestion with one question per call where the options are knowable; use free text otherwise.
+Ask one step at a time, in the order below, and wait for the answer before moving on. Later steps depend on earlier answers (versions depend on the stack, testing defaults depend on the build tools), and a single question is easier to think about than a form. Where the options are knowable, offer them as choices, using your agent's question tool if it has one (AskUserQuestion in Claude Code) with one question per call; use free text otherwise.
 
 1. **Name.** Ask for the project name, then separately for a one sentence description (it seeds the README). Derive a folder name in the stack's convention (usually lowercase with hyphens or underscores) and confirm it.
 2. **Location.** Default to creating the folder inside the current working directory. Show the full absolute path and confirm. If the folder already exists and is not empty, stop and ask; never write into an existing project.
@@ -77,7 +77,7 @@ Copy `templates/AGENTS.md` to the project root and fill it in:
 Do not add the Testing section yet; that happens in phase 4.
 
 ### bin/setup
-The setup script does the actual installing; the install skill only wraps it. Putting the steps in a script means people without Claude get the same setup, and there is one place to fix when setup changes.
+The setup script does the actual installing; the install skill only wraps it. Putting the steps in a script means people without an agent get the same setup, and there is one place to fix when setup changes.
 
 Copy `templates/bin/setup` to `bin/setup` (`chmod +x`) and fill it from the phase 2 log. If the generator already made a `bin/setup` (Rails does), merge the template's prerequisite checks and exit codes into it rather than replacing it.
 - **Prerequisites**: one `require` line per system tool (version manager, build tool, database server), with the install command as the hint. Also check versions where a wrong one would break things. The script checks system tools but never installs them, so it is always safe to run.
@@ -90,12 +90,14 @@ Then prove it from a clean state: remove what the script creates (`.venv`, `node
 When Ruby is managed by asdf, add `bin/update-ruby` (`chmod +x`), which upgrades Ruby the way that works with the asdf ruby plugin (see `references/stacks.md`). With no argument it installs the version in `.tool-versions`; with a version argument it also updates every pin (`.tool-versions`, `.ruby-version`, the `RUBY_VERSION` argument in `Dockerfile` if present) and runs `bundle install`. Before `asdf plugin remove ruby` it lists the Rubies that removal will uninstall and asks for confirmation (`--yes` skips the prompt), and at the end it prints the command to reinstall them. Exit early with a clear message if asdf is missing. Run it once with `--help` to confirm it works, document it in the README's Other Commands, and point to it from `bin/setup` (in the message when the pinned Ruby cannot be installed) and from the install skill's Troubleshooting.
 
 ### Install skill
-Copy `templates/install-skill/SKILL.md` to `.claude/skills/install/SKILL.md` and fill it in. Most of it is fixed text about running and maintaining `bin/setup`.
+Copy `templates/install-skill/SKILL.md` to `.agents/skills/install/SKILL.md` and fill it in. Most of it is fixed text about running and maintaining `bin/setup`.
+
+`.agents/skills/` is the shared project folder for agents that follow the open Agent Skills format. Claude Code only reads `.claude/skills/`, so also link the skill there: `mkdir -p .claude/skills && ln -s ../../.agents/skills/install .claude/skills/install`. Commit the link, not a copy, so there is only one set of files to keep current.
 
 Copy `templates/install-skill/decision_log.txt` next to it and fill the first entry from the phase 2 log: the generator command, versions chosen and why, tools picked over the alternatives offered, and any workaround needed. Keeping this history out of `SKILL.md` means the skill stays short instructions while the log can grow over the life of the project.
 
 ### README.md
-If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: `/install` in Claude Code, and running `bin/setup` directly for people not using Claude. Keep the "Built using skill project-template" line at the very bottom, below any sections added later.
+If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: the install skill through a coding agent (`/install` in Claude Code), and running `bin/setup` directly for people not using an agent. Keep the "Built using skill project-template" line at the very bottom, below any sections added later.
 
 Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bin/setup and install skill"`.
 
@@ -105,7 +107,7 @@ Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bi
 2. **Install and configure** each tool as a development dependency, with config in the conventional place.
 3. **Add one real example test per category** (a unit test of the hello world code, an e2e test that loads the app or runs the CLI) so every command proves it works. Fix any lint errors the linter reports in the generated code.
 4. **Wire up commands** using the stack's task runner from `references/stacks.md`. The required set is: lint, auto fix, unit, e2e, coverage, `check` (everything except e2e) and `check:all` or equivalent (everything including e2e). Run every one of them and confirm each passes. Do not claim a command works without having run it.
-5. **Update bin/setup and the install skill**: add anything the testing tools need to `bin/setup` (browser binaries for Playwright, for example), and make its verify step run `check`. Rerun it from a clean state as in phase 3. Add a dated entry for the testing choices to `.claude/skills/install/decision_log.txt`, including any category the user skipped and why.
+5. **Update bin/setup and the install skill**: add anything the testing tools need to `bin/setup` (browser binaries for Playwright, for example), and make its verify step run `check`. Rerun it from a clean state as in phase 3. Add a dated entry for the testing choices to `.agents/skills/install/decision_log.txt`, including any category the user skipped and why.
 6. **Update AGENTS.md**: append `templates/AGENTS.testing.md` filled in, between Installation and Commenting.
 7. **Update README.md**: fill the Testing section with the commands.
 8. Run the placeholder grep, then commit: `git commit -m "Add testing suite"`.
