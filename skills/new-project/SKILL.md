@@ -23,6 +23,10 @@ Templates contain `{{UPPER_SNAKE}}` placeholders. Fill every one with real, proj
 
 Write all generated text in line with the Communication Style section of the AGENTS.md template: no coined hyphenated compound modifiers, plain prose instead.
 
+## Stable releases only
+
+Never choose or install a release candidate, beta, alpha, nightly, canary or any other prerelease. This covers the same things as the release age rule below. A registry's `latest` tag is not proof of a stable release (npm's `latest` for `prisma` has pointed at an `8.0.0-rc` while `@prisma/client` was on 7.x), so check the version string and name the newest stable release explicitly. Ignore update notices that suggest a prerelease. If the user asks for a prerelease, say what it is and confirm before installing it.
+
 ## Release age
 
 Never choose or install a release that was published less than 3 days ago. Compromised versions of popular packages are usually reported and yanked within a few days, so waiting that long avoids most of them. This covers language and framework versions, generator packages (`create-vite`, the `rails` gem), and every library installed in phases 2 and 4, including indirect dependencies the package manager resolves.
