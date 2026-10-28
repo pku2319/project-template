@@ -105,10 +105,10 @@ Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bi
 
 1. **Use the tools chosen in phase 1.** For any skipped category, write the reason in its AGENTS.md section instead of a tool.
 2. **Install and configure** each tool as a development dependency, with config in the conventional place.
-3. **Add one real example test per category** (a unit test of the hello world code, an e2e test that loads the app or runs the CLI) so every command proves it works. Fix any lint errors the linter reports in the generated code.
+3. **Add one real example test per category** (a unit test of the hello world code, an e2e test that loads the app or runs the CLI) so every command proves it works. The example e2e test waits only through the e2e tool's built in waiting, as listed under the stack's **E2e waiting** in `references/stacks.md`, never with a sleep or a fixed timeout, so later tests copy a good pattern. Fix any lint errors the linter reports in the generated code.
 4. **Wire up commands** using the stack's task runner from `references/stacks.md`. The required set is: lint, auto fix, unit, e2e, coverage, `check` (everything except e2e) and `check:all` or equivalent (everything including e2e). Run every one of them and confirm each passes. Do not claim a command works without having run it.
 5. **Update bin/setup and the install skill**: add anything the testing tools need to `bin/setup` (browser binaries for Playwright, for example), and make its verify step run `check`. Rerun it from a clean state as in phase 3. Add a dated entry for the testing choices to `.agents/skills/install/decision_log.txt`, including any category the user skipped and why.
-6. **Update AGENTS.md**: append `templates/AGENTS.testing.md` filled in, between Installation and Commenting.
+6. **Update AGENTS.md**: append `templates/AGENTS.testing.md` filled in, between Installation and Commenting. Fill `{{E2E_WAITING}}` from the stack's **E2e waiting** entry: the waiting calls to use, with a short example in the project's language, and the fixed pause calls they replace. If e2e was skipped, remove the paragraphs about waiting along with the placeholder.
 7. **Update README.md**: fill the Testing section with the commands.
 8. Run the placeholder grep, then commit: `git commit -m "Add testing suite"`.
 

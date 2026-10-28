@@ -8,6 +8,7 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 - **Lint and format**: ruff (`ruff check`, `ruff format`), config in `pyproject.toml`.
 - **Unit**: pytest, tests in `tests/`.
 - **E2e**: Playwright for Python (`pytest-playwright`, then `uv run playwright install chromium`) for web apps; for CLIs, pytest driving the console script through `subprocess`.
+- **E2e waiting**: Playwright locator actions wait for the element on their own, and `expect(locator).to_be_visible()`, `to_have_text()` and the other `expect` assertions retry until they pass. Use `page.expect_response()` to wait for a request. Never `time.sleep()` or `page.wait_for_timeout()`. For CLIs, `subprocess.run()` waits for the process to exit; for a long running process, read its output until the expected line appears.
 - **Coverage**: pytest-cov (`pytest --cov`).
 - **Task runner**: Makefile (`make lint`, `make fix`, `make test`, `make e2e`, `make coverage`, `make check`, `make check-all`).
 
@@ -18,6 +19,7 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 - **Lint and format**: ESLint (flat config) with Prettier, or Biome if they prefer one tool.
 - **Unit**: Vitest (Jest only for an existing Jest ecosystem such as some React Native setups).
 - **E2e**: Playwright (`@playwright/test`, `npx playwright install`).
+- **E2e waiting**: locator actions wait for the element on their own, and `await expect(locator).toBeVisible()`, `toHaveText()` and the other web first assertions retry until they pass. Use `page.waitForResponse()` to wait for a request. Never `page.waitForTimeout()` or a `setTimeout` promise.
 - **Coverage**: Vitest coverage with `@vitest/coverage-v8`.
 - **Task runner**: `package.json` scripts (`lint`, `fix`, `test`, `test:e2e`, `coverage`, `check`, `check:all`).
 
@@ -28,6 +30,7 @@ Starting points, not rules, read during phase 1 so every choice is settled befor
 - **Lint and format**: RuboCop (`rubocop-rails-omakase` comes with Rails 7.2 and later), plus `rubocop-rspec` when the project uses RSpec. Whatever else is chosen, `.rubocop.yml` must include the rules in "RuboCop rules for every Ruby project" below.
 - **Unit**: Minitest for Rails by default; RSpec if they prefer.
 - **E2e**: Capybara system tests (Rails includes them) with Selenium or Cuprite.
+- **E2e waiting**: Capybara finders and matchers (`find`, `click_on`, `assert_selector`, `assert_text`, or `have_css` and `have_content` in RSpec) retry until `Capybara.default_max_wait_time`. Check for absence with `assert_no_selector` or `have_no_content`, since `refute page.has_css?` checks once and gives up. Never `sleep`.
 - **Coverage**: SimpleCov.
 - **Task runner**: Rails apps use `bin/rails`, which also runs every Rake task (`bin/rails test`, `bin/rails lint`, `bin/rails check`); define custom tasks in `lib/tasks/*.rake` and invoke them through `bin/rails`, not `rake`. Plain Ruby projects without Rails have no `rails` command, so they use Rake (`bundle exec rake <task>`) or `bin/` scripts.
 
@@ -63,6 +66,7 @@ Run `rubocop --autocorrect-all` after adding them so the generated code already 
 - **Lint and format**: golangci-lint, gofmt.
 - **Unit**: `go test ./...` with the standard library.
 - **E2e**: `go test` with a build tag (`//go:build e2e`) that drives the built binary or HTTP server; Playwright if there is a web UI.
+- **E2e waiting**: `cmd.Run()` and `cmd.Output()` wait for the binary to exit. For a server, wait until it prints its listening line on stdout, or pass it a listener the test already opened, before sending requests. Never `time.Sleep()`. With Playwright, use the waiting listed under JavaScript and TypeScript.
 - **Coverage**: `go test -coverprofile=coverage.out ./...` and `go tool cover`.
 - **Task runner**: Makefile.
 
@@ -72,5 +76,6 @@ Run `rubocop --autocorrect-all` after adding them so the generated code already 
 - **Lint and format**: clippy, rustfmt.
 - **Unit**: `cargo test`.
 - **E2e**: integration tests in `tests/` with `assert_cmd` for CLIs.
+- **E2e waiting**: `Command::assert()` waits for the process to exit before checking its output. For a long running process, read its output until the expected line appears. Never `std::thread::sleep()` or `tokio::time::sleep()`.
 - **Coverage**: cargo-llvm-cov.
 - **Task runner**: Makefile or cargo aliases in `.cargo/config.toml`.

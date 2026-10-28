@@ -34,6 +34,12 @@ Cover the edge cases, not only the expected path:
 
 {{E2E_TOOL_LOCATION_AND_CONVENTIONS}}
 
+Wait for the condition the next step depends on, such as an element appearing, text changing, a request finishing or a process exiting, using the waiting the e2e tool has built in. Do not pause for a fixed time with `sleep`, `wait` or a timeout call. A fixed pause is too short on a slow machine and wasted time on a fast one, so the test ends up both flaky and slow.
+
+The one exception is a delay the app adds on purpose, such as a debounce or a deliberate wait written in the app's code. A test of that behavior may pause for that delay. Take the duration from the same constant the app uses rather than repeating the number, and add a comment pointing to the code that causes it.
+
+{{E2E_WAITING}}
+
 ## Test Coverage
 
 {{COVERAGE_TOOL_AND_REPORT_LOCATION}}
