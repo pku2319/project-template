@@ -72,6 +72,8 @@ require:
 
 Its cops check Ruby view helpers such as `image_tag` without `alt` and a positive `tabindex`. RuboCop does not read raw HTML in ERB, so an `<img>` tag written by hand is not checked.
 
+To cover that HTML, offer the Herb linter (`@herb-tools/linter`) in phase 1 as an opt-in, not a default. Offer it only for Rails apps that already have a JavaScript package manager (jsbundling or Vite), since an importmap app would need one added just for this. It has about 25 accessibility rules, including alt text, ARIA roles and attributes, empty headings, iframe titles and positive `tabindex`. It has only existed since July 2025 and is still 0.x, so rules and config can change between minor releases. Say both of these things when offering it. If the user chooses it, add it as a development dependency pinned to an exact version, create `.herb.yml` with `npx herb-lint --init`, and run `herb-lint` from the `lint` Rake task so `bin/rails lint` fails on its errors.
+
 ## Go
 - **Build and env**: Go modules (`go mod init <module path>`), Go version in `go.mod` and `toolchain` directive.
 - **Release age**: Go has no setting for this. After `go get`, read each new module's publish time from `https://proxy.golang.org/<module>/@v/<version>.info` and pin back with `go get <module>@<version>` where it is under 3 days old.
