@@ -7,7 +7,7 @@ description: Scaffold a brand new software project from scratch. Asks for a name
 
 This skill takes a user from nothing to a committed, documented, tested project in four phases. Each phase ends in a commit, so the history reads as: stack installed, then docs with `bin/setup` and the install skill, then the testing suite.
 
-Templates live next to this file in `templates/`. Stack defaults (build tools, test tools, task runners) live in `references/stacks.md`; read it once the stack is known.
+Templates live next to this file in `templates/`. Stack defaults (build tools, test tools, task runners) live in `references/stacks.md`; read it once the stack is known. Lint configs that `stacks.md` says to copy, which were tested by running them, live next to it, such as `references/javascript/`.
 
 ## Keeping the user oriented
 
