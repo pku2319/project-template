@@ -26,6 +26,8 @@ Cover the edge cases, not only the expected path:
 
 {{LINT_TOOL_AND_CONFIG}}
 
+{{ACCESSIBILITY_LINT}}
+
 ## Unit Testing
 
 {{UNIT_TOOL_LOCATION_AND_CONVENTIONS}}
