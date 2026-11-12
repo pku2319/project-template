@@ -29,9 +29,10 @@ Never choose or install a release candidate, beta, alpha, nightly, canary or any
 
 ## Release age
 
-Never choose or install a release that was published less than 3 days ago. Compromised versions of popular packages are usually reported and yanked within a few days, so waiting that long avoids most of them. This covers language and framework versions, generator packages (`create-vite`, the `rails` gem), and every library installed in phases 2 and 4, including indirect dependencies the package manager resolves.
+Never choose or install a release that was published less than 3 days ago. Compromised versions of popular packages are usually reported and yanked within a few days, so waiting that long avoids most of them. This covers language and framework versions, generator packages (`create-vite`, the `rails` gem), and every library installed in phases 2 and 4, including indirect dependencies the package manager resolves. The saved setting below keeps the rule in force for libraries added after the project is created.
 
-- Turn on the package manager's own release age setting for every install command in this run; `references/stacks.md` lists it per stack. Where the stack has no such setting, look up the publish date of each newly added package and pin back to the newest release that is at least 3 days old.
+- Save the package manager's own release age setting in the project's config file, which `references/stacks.md` names per stack, so every later install by a person or an agent gets the same rule. Write it as soon as the generator has created the project files and before any other install, and commit it with the stack. Commands that run before the file exists (the `bundle install` inside `rails new`) get the setting as a flag or environment variable instead.
+- Where the stack has no such setting, look up the publish date of each newly added package and pin back to the newest release that is at least 3 days old.
 - Never pull a generator with `@latest` or an unpinned `gem install`; name a version that is at least 3 days old.
 - When the newest release is held back, say so in the plan and record it in the decision log, with the version used instead and the date it becomes eligible.
 - If a package has no release old enough, or the newer one fixes a security problem the user needs, stop and ask rather than overriding the setting quietly.
@@ -80,7 +81,7 @@ Do not add the Testing section yet; that happens in phase 4.
 The setup script does the actual installing; the install skill only wraps it. Putting the steps in a script means people without an agent get the same setup, and there is one place to fix when setup changes.
 
 Copy `templates/bin/setup` to `bin/setup` (`chmod +x`) and fill it from the phase 2 log. If the generator already made a `bin/setup` (Rails does), merge the template's prerequisite checks and exit codes into it rather than replacing it.
-- **Prerequisites**: one `require` line per system tool (version manager, build tool, database server), with the install command as the hint. Also check versions where a wrong one would break things. The script checks system tools but never installs them, so it is always safe to run.
+- **Prerequisites**: one `require` line per system tool (version manager, build tool, database server), with the install command as the hint. Also check versions where a wrong one would break things, including the minimum package manager version that honors the release age setting, because older versions can ignore it without a warning. The script checks system tools but never installs them, so it is always safe to run.
 - **Dependencies**: everything inside the project: language version through the version manager, packages, `.env` copied from `.env.example` if missing, database creation. Each step skips work that is already done.
 - **Verify**: a fast command that proves the install works (import the package, run the CLI with `--help`, boot the app and hit it once).
 
