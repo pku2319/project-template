@@ -60,7 +60,7 @@ Ask one step at a time, in the order below, and wait for the answer before movin
 
 1. `mkdir -p <path> && cd <path> && git init`. Work from this directory for everything after this point.
 2. **Install the approved system tools** from the plan, if any.
-3. **Install the stack in place.** Run the generator or init command inside the current folder (`uv init .`, `npm create vite@latest .`, `rails new .`, and so on), because many generators otherwise create a nested folder or a nested git repo. Pin the chosen versions in the files the ecosystem expects (`.python-version`, `.tool-versions`, `.nvmrc`, `engines`, `.ruby-version`, `go.mod`).
+3. **Install the stack in place.** Run the generator or init command inside the current folder (`uv init .`, `npm create vite@<version> .`, `rails new .`, and so on), because many generators otherwise create a nested folder or a nested git repo. Pin the chosen versions in the files the ecosystem expects (`.python-version`, `.tool-versions`, `.nvmrc`, `engines`, `.ruby-version`, `go.mod`).
 4. **Make sure `.gitignore` exists** and covers dependency folders, virtual environments, build output, env files and OS files before the first commit. Use the generator's file if it made one and extend it if needed.
 5. **Verify it runs.** Start the app or run the hello world entry point once and confirm the output. Fix problems now; a broken first commit poisons everything after it.
 6. Keep a running log of every command you ran, every choice made and why. Phase 3 turns it into `bin/setup` and the decision log.
