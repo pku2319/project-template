@@ -1,13 +1,13 @@
 ---
 name: new-project
-description: Scaffold a brand new software project from scratch. Asks for a name, stack and supported versions, creates the folder, runs git init, installs the stack with its build tools, writes AGENTS.md and README.md from templates, adds a `bin/setup` script with an `install` skill that keeps it current, then installs linting, unit, e2e and coverage tooling, committing after each stage. Use this whenever the user wants to start, bootstrap, scaffold, spin up or initialize a new project, app, service, library or repo, even if they only name a stack ("start a new FastAPI thing", "make me a fresh Rails app").
+description: Scaffold a brand new software project from scratch. Asks for a name, stack and supported versions, creates the folder, runs git init, installs the stack with its build tools, writes AGENTS.md and README.md from templates, adds a `bin/setup` script with an `install` skill that keeps it current and a `dependencies` skill for choosing library versions, then installs linting, unit, e2e and coverage tooling, committing after each stage. Use this whenever the user wants to start, bootstrap, scaffold, spin up or initialize a new project, app, service, library or repo, even if they only name a stack ("start a new FastAPI thing", "make me a fresh Rails app").
 ---
 
 # New Project
 
-This skill takes a user from nothing to a committed, documented, tested project in four phases. Each phase ends in a commit, so the history reads as: stack installed, then docs with `bin/setup` and the install skill, then the testing suite.
+This skill takes a user from nothing to a committed, documented, tested project in four phases. Each phase ends in a commit, so the history reads as: stack installed, then docs with `bin/setup` and the install and dependencies skills, then the testing suite.
 
-Templates live next to this file in `templates/`. Stack defaults (build tools, test tools, task runners) live in `references/stacks.md`; read it once the stack is known. Lint configs that `stacks.md` says to copy, which were tested by running them, live next to it, such as `references/javascript/`.
+Templates live next to this file in `templates/`. Stack defaults (build tools, test tools, task runners) live in `references/stacks.md`; read it once the stack is known. Lint configs and scripts that `stacks.md` says to copy, which were tested by running them, live next to it, such as `references/javascript/` and `references/go/`.
 
 ## Keeping the user oriented
 
@@ -15,7 +15,7 @@ The run is long, so the user should always know where they are and how much is l
 
 - **At the start**, before the first question, show the outline: phase 1 has 8 steps of questions, then phases 2 to 4 run on their own and each ends in a commit.
 - **In phase 1**, prefix every question with its position, for example "Step 3 of 8: Stack". When a step has several questions, show both levels: "Step 6 of 8: Testing tools (2 of 4: unit and integration testing)". If an answer makes a step unnecessary, say it is skipped rather than silently renumbering.
-- **In phases 2 to 4**, announce each phase as it starts ("Phase 3 of 4: AGENTS.md, bin/setup, install skill and README") and each commit as it lands, so the user can follow along without being asked anything.
+- **In phases 2 to 4**, announce each phase as it starts ("Phase 3 of 4: AGENTS.md, bin/setup, install and dependencies skills, and README") and each commit as it lands, so the user can follow along without being asked anything.
 
 ## Placeholders
 
@@ -36,6 +36,8 @@ Never choose or install a release that was published less than 3 days ago. Compr
 - Never pull a generator with `@latest` or an unpinned `gem install`; name a version that is at least 3 days old.
 - When the newest release is held back, say so in the plan and record it in the decision log, with the version used instead and the date it becomes eligible.
 - If a package has no release old enough, or the newer one fixes a security problem the user needs, stop and ask rather than overriding the setting quietly.
+
+The dependencies skill written in phase 3 carries this rule and the stable releases rule into the project, together with a third: each library added later is the newest release that meets both and works with the stack.
 
 ## Phase 1: Gather requirements
 
@@ -97,10 +99,19 @@ Copy `templates/install-skill/SKILL.md` to `.agents/skills/install/SKILL.md` and
 
 Copy `templates/install-skill/decision_log.txt` next to it and fill the first entry from the phase 2 log: the generator command, versions chosen and why, tools picked over the alternatives offered, and any workaround needed. Keeping this history out of `SKILL.md` means the skill stays short instructions while the log can grow over the life of the project.
 
+### Dependencies skill
+Copy `templates/dependencies-skill/SKILL.md` to `.agents/skills/dependencies/SKILL.md` and link it the same way: `ln -s ../../.agents/skills/dependencies .claude/skills/dependencies`. Fill it from the stack's **Release age** and **Dependencies skill** entries in `references/stacks.md`, using the package manager chosen in phase 1:
+- `{{ADD_COMMANDS}}` and `{{DEPENDENCY_FILES}}`: the commands that add or change a dependency and the files that record them, so the description matches what an agent is about to do.
+- `{{ENFORCEMENT}}`: which file holds the release age setting and, where there is one, the prerelease setting; for Go, `bin/check-release-age` and the hook that runs it.
+- `{{ADD_EXAMPLE}}`, `{{PRERELEASE_CHECK}}`, `{{OUTDATED_COMMAND}}` and `{{OUTDATED_NOTES}}`: the commands and caveats from the entry. Where the package manager already refuses prereleases, the prerelease check says so in one sentence.
+- `{{EXCEPTION_NOTE}}`: how an approved exception is made in this stack.
+
+For Go, `bin/check-release-age` and its hook were copied in phase 2 (see `stacks.md`); run `bin/check-release-age` once more and confirm it passes.
+
 ### README.md
 If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: the install skill through a coding agent (`/install` in Claude Code), and running `bin/setup` directly for people not using an agent. Keep the "Built using skill project-template" line at the very bottom, below any sections added later.
 
-Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bin/setup and install skill"`.
+Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bin/setup, install and dependencies skills"`.
 
 ## Phase 4: Testing suite
 

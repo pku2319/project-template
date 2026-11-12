@@ -26,7 +26,7 @@ Whenever setup needed something the script did not do, change the script so the 
 5. If the fix involved a choice (a version, a tool, a workaround over the obvious approach), add a dated entry to `decision_log.txt` next to this file saying what was chosen and why.
 6. Commit the script and doc changes together.
 
-Apply the same steps when setup changes on purpose: a new dependency, tool, environment variable or version bump is not done until `bin/setup` handles it.
+Apply the same steps when setup changes on purpose: a new dependency, tool, environment variable or version bump is not done until `bin/setup` handles it. For a new or upgraded library, choose the version with the dependencies skill first.
 
 ## Manual steps
 

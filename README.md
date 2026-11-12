@@ -41,11 +41,12 @@ Note: It does not create a remote, and it does not write into an existing folder
 ### Opinionated Parts
 
 - Stable releases only. No release candidates, betas or nightlies unless you ask for one and confirm.
-- Nothing published in the last 3 days, including indirect dependencies, because compromised releases are usually pulled within a few days. Where the package manager has a release age setting (npm, pnpm, Bun, uv, Bundler, and Cargo from 1.100), it is saved in the project's config files, so it keeps applying to every library added later. Go has no such setting, so publish dates are checked by hand. It will note when a release is being gated by the 3 day rule during the QA phase and in the decision log.
+- Nothing published in the last 3 days, including indirect dependencies, because compromised releases are usually pulled within a few days. Where the package manager has a release age setting (npm, pnpm, Bun, uv, Bundler, and Cargo from 1.100), it is saved in the project's config files, so it keeps applying to every library added later. Go has no such setting, so a `bin/check-release-age` script checks publish dates, run by `check` and by a Claude Code hook whenever `go.mod` or `go.sum` changes. It will note when a release is being gated by the 3 day rule during the QA phase and in the decision log.
 - Only language and framework versions that are still officially supported will be given as options based on a search the time of the run.
 - `AGENTS.md` for coding agents and `README.md` for people.
 - A `bin/setup` script that checks system tools, installs project dependencies and verifies the result. It is safe to run again.
 - An `install` skill that runs `bin/setup` and keeps it current, plus a decision log recording what was chosen and why.
+- A `dependencies` skill for libraries added later: stable releases only, at least 3 days old, and the newest release that works with the stack. Any library left on an older version needs a reason in the decision log.
 - The same set of commands in every stack: lint, fix, unit tests, end to end tests, coverage, `check` (everything except end to end tests) and `check:all` (everything). Each has a working example test, and each testing component is run before being committed.
 
 #### Stack defaults

@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Go has no setting that holds back new releases, so this script enforces the
+# rules from the dependencies skill instead: every module in the build list must
+# be a stable release published at least MIN_AGE_DAYS ago.
+#
+#   bin/check-release-age          check the build list, exit 1 on any problem
+#   bin/check-release-age --hook   run as a Claude Code PostToolUse hook: skip
+#                                  tool calls that cannot change go.mod or go.sum,
+#                                  and exit 2 so the agent sees the problems
+#
+# An exception the user approved goes in bin/check-release-age.allow as one
+# line per module: "<module>@<version>  <reason>". Remove it once the version
+# is old enough.
+set -euo pipefail
+
+MIN_AGE_DAYS=3
+cd "$(dirname "$0")/.."
+ALLOW_FILE=bin/check-release-age.allow
+
+failure_exit=1
+if [ "${1:-}" = "--hook" ]; then
+  failure_exit=2
+  if ! grep -qE 'go\.(mod|sum)|go (get|mod|work)' <(cat); then
+    exit 0
+  fi
+fi
+
+is_allowed() {
+  [ -f "$ALLOW_FILE" ] && awk '{print $1}' "$ALLOW_FILE" | grep -qxF -- "$1"
+}
+
+# A pseudo-version (vX.Y.Z-<14 digit time>-<12 hex commit>) names an untagged
+# commit. Strip that suffix first so only a real prerelease tag such as -rc.1
+# counts as a prerelease.
+prerelease_part() {
+  local core=${1%%+*}
+  core=$(sed -E 's/[-.](0\.)?[0-9]{14}-[0-9a-f]{12}$//' <<<"$core")
+  [[ $core == *-* ]] && echo "${core#*-}"
+  return 0
+}
+
+cutoff=$(($(date +%s) - MIN_AGE_DAYS * 86400))
+problems=()
+
+while read -r module version published_at published_on; do
+  [ -z "${version:-}" ] && continue
+  is_allowed "$module@$version" && continue
+
+  pre=$(prerelease_part "$version")
+  if [ -n "$pre" ]; then
+    problems+=("$module@$version is a prerelease ($pre); use the newest stable release")
+  fi
+  if [ -z "${published_at:-}" ]; then
+    problems+=("$module@$version has no publish time; run go mod download and try again")
+  elif [ "$published_at" -gt "$cutoff" ]; then
+    eligible_on=$(date -r $((published_at + MIN_AGE_DAYS * 86400)) +%Y-%m-%d 2>/dev/null ||
+      date -d "@$((published_at + MIN_AGE_DAYS * 86400))" +%Y-%m-%d)
+    problems+=("$module@$version was published $published_on, less than $MIN_AGE_DAYS days ago; pin the newest older stable release with go get $module@<version> (this one is allowed from $eligible_on)")
+  fi
+done < <(go list -m -f '{{if not .Main}}{{.Path}} {{.Version}} {{with .Time}}{{.Unix}} {{.Format "2006-01-02"}}{{end}}{{end}}' all)
+
+if [ ${#problems[@]} -gt 0 ]; then
+  {
+    echo "Release age check failed (see .agents/skills/dependencies/SKILL.md):"
+    printf '  %s\n' "${problems[@]}"
+  } >&2
+  exit "$failure_exit"
+fi
