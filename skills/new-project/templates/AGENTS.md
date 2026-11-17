@@ -12,7 +12,7 @@ Do not coin hyphenated compound modifiers or compress feature descriptions into 
 
 ## Dependencies
 
-Adding or upgrading a library follows the dependencies skill at `.agents/skills/dependencies/SKILL.md` (linked from `.claude/skills/dependencies`): stable releases only, published at least 3 days ago, and the newest release that meets both and works with the stack. Never pick a version from memory.
+Adding, upgrading or removing a library follows the dependencies skill at `.agents/skills/dependencies/SKILL.md` (linked from `.claude/skills/dependencies`). In short: use what is already installed when it covers the need; choose libraries with a release in the last year and enough history of use; install only stable releases published at least 3 days ago; and use the newest release that meets every rule and works with the stack. Never pick a version from memory. `bin/dependency-report` gathers the facts for each decision, and `bin/check-dependencies` enforces the release rules.
 
 ## Toolchain
 

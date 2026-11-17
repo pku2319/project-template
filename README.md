@@ -41,12 +41,17 @@ Note: It does not create a remote, and it does not write into an existing folder
 ### Opinionated Parts
 
 - Stable releases only. No release candidates, betas or nightlies unless you ask for one and confirm.
-- Nothing published in the last 3 days, including indirect dependencies, because compromised releases are usually pulled within a few days. Where the package manager has a release age setting (npm, pnpm, Bun, uv, Bundler, and Cargo from 1.100), it is saved in the project's config files, so it keeps applying to every library added later. Go has no such setting, so a `bin/check-release-age` script checks publish dates, run by `check` and by a Claude Code hook whenever `go.mod` or `go.sum` changes. It will note when a release is being gated by the 3 day rule during the QA phase and in the decision log.
+- Nothing published in the last 3 days, including indirect dependencies, because compromised releases are usually pulled within a few days. Where the package manager has a release age setting (npm, pnpm, Bun, uv, Bundler, and Cargo from 1.100), it is saved in the project's config files, so it keeps applying to every library added later. Every project also gets a `bin/check-dependencies` script that checks the rule for every installed package, run by `check` and by a Claude Code hook whenever dependencies change. For Go, which has no such setting, it is the only check. Offline, it passes only if the dependency files are unchanged since it last passed. It will note when a release is being gated by the 3 day rule during the QA phase and in the decision log.
 - Only language and framework versions that are still officially supported will be given as options based on a search the time of the run.
 - `AGENTS.md` for coding agents and `README.md` for people.
 - A `bin/setup` script that checks system tools, installs project dependencies and verifies the result. It is safe to run again.
 - An `install` skill that runs `bin/setup` and keeps it current, plus a decision log recording what was chosen and why.
-- A `dependencies` skill for libraries added later: stable releases only, at least 3 days old, and the newest release that works with the stack. Any library left on an older version needs a reason in the decision log.
+- A `dependencies` skill for adding, upgrading and removing libraries later:
+  - Reuse what is already installed, including the standard library, when it covers the need, and ask when it covers only part of it.
+  - Choose libraries with a release in the last year (unless marked as finished) and enough history of use: first released at least 2 years ago, at least 5 releases, more than one maintainer or an organization, and at least 10% of the downloads of the most used alternative. If one fails, an alternative that passes is used and reported.
+  - Install the newest stable release that is at least 3 days old. If a newer one fixes a security problem, you get the advisories and decide.
+  - Clear what holds a library back: patch and minor upgrades of other libraries happen automatically, up to 3 levels deep with one commit each, while major, runtime and framework upgrades wait for your approval. Anything still held back needs a reason in the decision log.
+  - A `bin/dependency-report` script gathers the facts for each of these decisions from the registries and the OSV advisory database. It needs `curl` and `jq`.
 - The same set of commands in every stack: lint, fix, unit tests, end to end tests, coverage, `check` (everything except end to end tests) and `check:all` (everything). Each has a working example test, and each testing component is run before being committed.
 
 #### Stack defaults

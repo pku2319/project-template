@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/bin/check-release-age --hook"
+            "command": "\"$CLAUDE_PROJECT_DIR\"/bin/check-dependencies --hook"
           }
         ]
       }

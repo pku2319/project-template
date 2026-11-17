@@ -1,13 +1,13 @@
 ---
 name: new-project
-description: Scaffold a brand new software project from scratch. Asks for a name, stack and supported versions, creates the folder, runs git init, installs the stack with its build tools, writes AGENTS.md and README.md from templates, adds a `bin/setup` script with an `install` skill that keeps it current and a `dependencies` skill for choosing library versions, then installs linting, unit, e2e and coverage tooling, committing after each stage. Use this whenever the user wants to start, bootstrap, scaffold, spin up or initialize a new project, app, service, library or repo, even if they only name a stack ("start a new FastAPI thing", "make me a fresh Rails app").
+description: Scaffold a brand new software project from scratch. Asks for a name, stack and supported versions, creates the folder, runs git init, installs the stack with its build tools, writes AGENTS.md and README.md from templates, adds a `bin/setup` script with an `install` skill that keeps it current and a `dependencies` skill with scripts for choosing, upgrading and removing libraries, then installs linting, unit, e2e and coverage tooling, committing after each stage. Use this whenever the user wants to start, bootstrap, scaffold, spin up or initialize a new project, app, service, library or repo, even if they only name a stack ("start a new FastAPI thing", "make me a fresh Rails app").
 ---
 
 # New Project
 
 This skill takes a user from nothing to a committed, documented, tested project in four phases. Each phase ends in a commit, so the history reads as: stack installed, then docs with `bin/setup` and the install and dependencies skills, then the testing suite.
 
-Templates live next to this file in `templates/`. Stack defaults (build tools, test tools, task runners) live in `references/stacks.md`; read it once the stack is known. Lint configs and scripts that `stacks.md` says to copy, which were tested by running them, live next to it, such as `references/javascript/` and `references/go/`.
+Templates live next to this file in `templates/`. Stack defaults (build tools, test tools, task runners) live in `references/stacks.md`; read it once the stack is known. Lint configs that `stacks.md` says to copy, which were tested by running them, live next to it in `references/javascript/`. The dependency scripts every project gets live in `references/scripts/`, with their tests in this repo's `tests/` (run `tests/run`).
 
 ## Keeping the user oriented
 
@@ -33,11 +33,12 @@ Never choose or install a release that was published less than 3 days ago. Compr
 
 - Save the package manager's own release age setting in the project's config file, which `references/stacks.md` names per stack, so every later install by a person or an agent gets the same rule. Write it as soon as the generator has created the project files and before any other install, and commit it with the stack. Commands that run before the file exists (the `bundle install` inside `rails new`) get the setting as a flag or environment variable instead.
 - Where the stack has no such setting, look up the publish date of each newly added package and pin back to the newest release that is at least 3 days old.
+- `bin/check-dependencies`, copied in phase 2, checks every installed package against this rule and the stable releases rule. Run it after every install in this run.
 - Never pull a generator with `@latest` or an unpinned `gem install`; name a version that is at least 3 days old.
 - When the newest release is held back, say so in the plan and record it in the decision log, with the version used instead and the date it becomes eligible.
 - If a package has no release old enough, or the newer one fixes a security problem the user needs, stop and ask rather than overriding the setting quietly.
 
-The dependencies skill written in phase 3 carries this rule and the stable releases rule into the project, together with a third: each library added later is the newest release that meets both and works with the stack.
+The dependencies skill written in phase 3 carries this rule and the stable releases rule into the project, and adds more for libraries added later: reuse what is already installed when it covers the need, choose libraries with a release in the last year and enough history of use, and install the newest release that meets every rule and works with the stack, clearing what holds it back where possible.
 
 ## Phase 1: Gather requirements
 
@@ -55,7 +56,7 @@ Ask one step at a time, in the order below, and wait for the answer before movin
    - Offer the newest stable cycle as the recommended option, plus the other supported cycles. Point out compatibility constraints between pieces (for example a framework release that needs a minimum language version) and anything brand new enough that libraries may lag.
 5. **Build tools.** Read `references/stacks.md` for the stack. Ask any choice it leaves open (for example which JavaScript package manager).
 6. **Testing tools.** Go through the categories one at a time: linting and formatting, then unit and integration testing, then e2e testing, then coverage. For each, propose the default from `references/stacks.md` marked as recommended. When the project has a web UI (HTML templates or components), include accessibility linting with linting and formatting, proposing the stack's **Accessibility** entry. Libraries, CLIs and APIs skip it. The user may skip a category (for example no e2e for a library); note the reason, since AGENTS.md records it later so nobody wonders whether it was forgotten.
-7. **System tools.** Check which version managers and build tools already exist (`which uv asdf mise nvm rbenv pnpm bun`, `asdf current`, and so on) and plan to use what the user already has. List anything missing at the system level (for example `brew install uv`) and get approval to install it now, since that changes their machine rather than the project. Include tools that only the testing suite needs.
+7. **System tools.** Check which version managers and build tools already exist (`which uv asdf mise nvm rbenv pnpm bun`, `asdf current`, and so on) and plan to use what the user already has. List anything missing at the system level (for example `brew install uv`) and get approval to install it now, since that changes their machine rather than the project. Include tools that only the testing suite needs, and `curl` and `jq`, which the dependency scripts need.
 8. **Plan.** Summarize everything: path, stack, versions (noting any release held back for being under 3 days old), build tools, testing tools, system installs, and the three commits that will be made. Get a single go ahead before touching the filesystem.
 
 ## Phase 2: Create and install the stack
@@ -63,10 +64,11 @@ Ask one step at a time, in the order below, and wait for the answer before movin
 1. `mkdir -p <path> && cd <path> && git init`. Work from this directory for everything after this point.
 2. **Install the approved system tools** from the plan, if any.
 3. **Install the stack in place.** Run the generator or init command inside the current folder (`uv init .`, `npm create vite@<version> .`, `rails new .`, and so on), because many generators otherwise create a nested folder or a nested git repo. Pin the chosen versions in the files the ecosystem expects (`.python-version`, `.tool-versions`, `.nvmrc`, `engines`, `.ruby-version`, `go.mod`).
-4. **Make sure `.gitignore` exists** and covers dependency folders, virtual environments, build output, env files and OS files before the first commit. Use the generator's file if it made one and extend it if needed.
-5. **Verify it runs.** Start the app or run the hello world entry point once and confirm the output. Fix problems now; a broken first commit poisons everything after it.
-6. Keep a running log of every command you ran, every choice made and why. Phase 3 turns it into `bin/setup` and the decision log.
-7. Commit: `git add -A && git commit -m "Install <stack summary>"`, listing the versions in the body.
+4. **Make sure `.gitignore` exists** and covers dependency folders, virtual environments, build output, env files and OS files before the first commit, plus `.dependency-cache/`, where the dependency scripts cache publish dates. Use the generator's file if it made one and extend it if needed.
+5. **Copy the dependency scripts.** Copy `references/scripts/check-dependencies` and `references/scripts/dependency-report` to `bin/` (`chmod +x`), and `references/scripts/lib/dependencies.bash` to `bin/lib/`. Copy `references/claude-settings.json` to `.claude/settings.json` (merge it if the file exists), so a Claude Code hook runs `bin/check-dependencies --hook` after any command or edit that changes dependencies. Run `bin/check-dependencies` now and after every later install in this run. A failure means a package breaks the stable releases or release age rule, so pin it back before going on. List any warning in the final report.
+6. **Verify it runs.** Start the app or run the hello world entry point once and confirm the output. Fix problems now; a broken first commit poisons everything after it.
+7. Keep a running log of every command you ran, every choice made and why. Phase 3 turns it into `bin/setup` and the decision log.
+8. Commit: `git add -A && git commit -m "Install <stack summary>"`, listing the versions in the body.
 
 ## Phase 3: AGENTS.md, bin/setup, install skill and README
 
@@ -83,7 +85,7 @@ Do not add the Testing section yet; that happens in phase 4.
 The setup script does the actual installing; the install skill only wraps it. Putting the steps in a script means people without an agent get the same setup, and there is one place to fix when setup changes.
 
 Copy `templates/bin/setup` to `bin/setup` (`chmod +x`) and fill it from the phase 2 log. If the generator already made a `bin/setup` (Rails does), merge the template's prerequisite checks and exit codes into it rather than replacing it.
-- **Prerequisites**: one `require` line per system tool (version manager, build tool, database server), with the install command as the hint. Also check versions where a wrong one would break things, including the minimum package manager version that honors the release age setting, because older versions can ignore it without a warning. The script checks system tools but never installs them, so it is always safe to run.
+- **Prerequisites**: one `require` line per system tool (version manager, build tool, database server, and `curl` and `jq` for the dependency scripts), with the install command as the hint. Also check versions where a wrong one would break things, including the minimum package manager version that honors the release age setting, because older versions can ignore it without a warning. The script checks system tools but never installs them, so it is always safe to run.
 - **Dependencies**: everything inside the project: language version through the version manager, packages, `.env` copied from `.env.example` if missing, database creation. Each step skips work that is already done.
 - **Verify**: a fast command that proves the install works (import the package, run the CLI with `--help`, boot the app and hit it once).
 
@@ -101,12 +103,14 @@ Copy `templates/install-skill/decision_log.txt` next to it and fill the first en
 
 ### Dependencies skill
 Copy `templates/dependencies-skill/SKILL.md` to `.agents/skills/dependencies/SKILL.md` and link it the same way: `ln -s ../../.agents/skills/dependencies .claude/skills/dependencies`. Fill it from the stack's **Release age** and **Dependencies skill** entries in `references/stacks.md`, using the package manager chosen in phase 1:
-- `{{ADD_COMMANDS}}` and `{{DEPENDENCY_FILES}}`: the commands that add or change a dependency and the files that record them, so the description matches what an agent is about to do.
-- `{{ENFORCEMENT}}`: which file holds the release age setting and, where there is one, the prerelease setting; for Go, `bin/check-release-age` and the hook that runs it.
-- `{{ADD_EXAMPLE}}`, `{{PRERELEASE_CHECK}}`, `{{OUTDATED_COMMAND}}` and `{{OUTDATED_NOTES}}`: the commands and caveats from the entry. Where the package manager already refuses prereleases, the prerelease check says so in one sentence.
-- `{{EXCEPTION_NOTE}}`: how an approved exception is made in this stack.
+- `{{ADD_COMMANDS}}` and `{{DEPENDENCY_FILES}}`: the commands that add, change or remove a dependency and the files that record them, so the description matches what an agent is about to do.
+- `{{CHECK_COMMAND}}`: the stack's `check` command from its task runner (`make check`, `npm run check`, `bin/rails check`), which phase 4 creates.
+- `{{ENFORCEMENT}}`: which file holds the release age setting and, where there is one, the prerelease setting. For Go, say that Go has no such setting, so `bin/check-dependencies` is the only check.
+- `{{ADD_EXAMPLE}}`, `{{PRERELEASE_CHECK}}`, `{{UPGRADE_EXAMPLE}}`, `{{REMOVE_EXAMPLE}}`, `{{OUTDATED_COMMAND}}` and `{{OUTDATED_NOTES}}`: the commands and caveats from the entry. Where the package manager already refuses prereleases, the prerelease check says so in one sentence.
+- `{{FINISHED_NOTE}}`: where a finished library note goes in this stack, with the example from the entry.
+- `{{EXCEPTION_NOTE}}`: how the package manager makes an approved exception. For Go, say there is nothing to change there.
 
-For Go, `bin/check-release-age` and its hook were copied in phase 2 (see `stacks.md`); run `bin/check-release-age` once more and confirm it passes.
+Run `bin/check-dependencies` once more and confirm it passes.
 
 ### README.md
 If the generator wrote a README, replace it with `templates/README.md` filled in (keep anything useful from the generated one). The Installation section must explain both routes: the install skill through a coding agent (`/install` in Claude Code), and running `bin/setup` directly for people not using an agent. Keep the "Built using skill project-template" line at the very bottom, below any sections added later.
@@ -118,7 +122,7 @@ Run the placeholder grep, then commit: `git commit -m "Add AGENTS.md, README, bi
 1. **Use the tools chosen in phase 1.** For any skipped category, write the reason in its AGENTS.md section instead of a tool.
 2. **Install and configure** each tool as a development dependency, with config in the conventional place. Install the accessibility linter, if there is one, alongside the main linter, and run it as part of the lint command rather than adding a new one.
 3. **Add one real example test per category** (a unit test of the hello world code, an e2e test that loads the app or runs the CLI) so every command proves it works. The example e2e test waits only through the e2e tool's built in waiting, as listed under the stack's **E2e waiting** in `references/stacks.md`, never with a sleep or a fixed timeout, so later tests copy a good pattern. Fix any lint errors the linter reports in the generated code, accessibility ones included, rather than disabling the rule.
-4. **Wire up commands** using the stack's task runner from `references/stacks.md`. The required set is: lint, auto fix, unit, e2e, coverage, `check` (everything except e2e) and `check:all` or equivalent (everything including e2e). Run every one of them and confirm each passes. Do not claim a command works without having run it.
+4. **Wire up commands** using the stack's task runner from `references/stacks.md`. The required set is: lint, auto fix, unit, e2e, coverage, `check` (everything except e2e, plus `bin/check-dependencies`) and `check:all` or equivalent (everything including e2e). Run every one of them and confirm each passes. Do not claim a command works without having run it.
 5. **Update bin/setup and the install skill**: add anything the testing tools need to `bin/setup` (browser binaries for Playwright, for example), and make its verify step run `check`. Rerun it from a clean state as in phase 3. Add a dated entry for the testing choices to `.agents/skills/install/decision_log.txt`, including any category the user skipped and why.
 6. **Update AGENTS.md**: append `templates/AGENTS.testing.md` filled in, between Installation and Commenting. Fill `{{E2E_WAITING}}` from the stack's **E2e waiting** entry: the waiting calls to use, with a short example in the project's language, and the fixed pause calls they replace. If e2e was skipped, remove the paragraphs about waiting along with the placeholder. Fill `{{ACCESSIBILITY_LINT}}` with one or two sentences: which accessibility rules the lint command runs, and that their failures are errors to fix, never rules to disable. If the project has no UI, say that accessibility linting was skipped for that reason.
 7. **Update README.md**: fill the Testing section with the commands.

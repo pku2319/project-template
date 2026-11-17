@@ -36,7 +36,8 @@ Coming soon: the testing suite is added in the next setup step.
 
 ## Other Commands
 
-None yet.
+- `bin/check-dependencies` checks every installed package: it fails on prereleases and on releases published less than 3 days ago, and warns about direct dependencies with no release in the last year. `check` runs it too.
+- `bin/dependency-report <package>` shows a library's releases, maintenance, usage and what holds its version back, before adding, upgrading or removing it. Add `--candidates <a>,<b>` to compare alternatives, or `--removing` before removing it.
 
 ---
 
