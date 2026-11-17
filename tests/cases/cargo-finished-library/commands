@@ -1,0 +1,2 @@
+bin/check-dependencies
+bin/dependency-report lazy_static

@@ -1,0 +1,388 @@
+#!/usr/bin/env bash
+# Gathers the facts the dependencies skill (.agents/skills/dependencies/SKILL.md)
+# needs before adding, upgrading or removing a library. It only reports; the
+# agent and the user make the decisions.
+#
+#   bin/dependency-report <package>
+#       versions and publish dates, release history, publisher, usage, and:
+#       - when the newest release is under 3 days old, the advisories it fixes
+#         and any security claim in its release notes
+#       - when the installed version is behind, what holds it back
+#       - when it is not a direct dependency yet, what is already installed,
+#         for the overlap check
+#   bin/dependency-report <package> --candidates <a>,<b>
+#       the same for each alternative, plus usage compared across all of them
+#   bin/dependency-report <package> --removing
+#       which direct dependencies it holds back, so they can move up once it
+#       is removed
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+# shellcheck source=lib/dependencies.bash
+. bin/lib/dependencies.bash
+
+usage() {
+  sed -n '/^#   bin/,/^set /p' "$0" | grep '^#' | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+name=''
+candidates=''
+removing=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    --candidates) candidates=${2:-}; shift ;;
+    --removing) removing=1 ;;
+    -h | --help) usage ;;
+    -*) usage 1 ;;
+    *) name=$1 ;;
+  esac
+  shift
+done
+[ -n "$name" ] || usage 1
+
+deps_detect
+
+case $DEPS_ECO in
+  npm) osv_ecosystem=npm ;;
+  pypi) osv_ecosystem=PyPI ;;
+  rubygems) osv_ecosystem=RubyGems ;;
+  crates) osv_ecosystem=crates.io ;;
+  go) osv_ecosystem=Go ;;
+esac
+
+stale_before=$(($(deps_now) - DEPS_STALE_DAYS * 86400))
+history_before=$(($(deps_now) - DEPS_MIN_HISTORY_DAYS * 86400))
+
+field() { printf '  %-22s %s\n' "$1:" "$2"; }
+release() { echo "$1, published $(deps_date "$2") ($(deps_days_ago "$2") days ago)"; }
+
+# RubyGems keeps the description, repository and downloads apart from the
+# release history.
+rubygems_info() {
+  deps_http "$DEPS_RUBYGEMS/gems/$1.json" 2>/dev/null || true
+}
+
+publisher() {
+  local name=$1 pkg=$2 repo count owners teams users owner
+  repo=$(jq -r '.repository // ""' <<<"$pkg")
+  case $DEPS_ECO in
+    npm)
+      count=$(jq -r '.maintainers // 0' <<<"$pkg")
+      if [ "$count" -ge 2 ]; then echo "pass, $count maintainers on npm"; return; fi
+      ;;
+    rubygems)
+      owners=$(deps_http "$DEPS_RUBYGEMS/gems/$name/owners.json" 2>/dev/null || echo '[]')
+      count=$(jq 'length' <<<"$owners")
+      if [ "$count" -ge 2 ]; then echo "pass, $count owners on RubyGems"; return; fi
+      ;;
+    crates)
+      owners=$(deps_http "$DEPS_CRATES/crates/$name/owners" 2>/dev/null || echo '{"users":[]}')
+      teams=$(jq -r '[.users[] | select(.kind == "team") | .login] | join(", ")' <<<"$owners")
+      users=$(jq '[.users[] | select(.kind == "user")] | length' <<<"$owners")
+      if [ -n "$teams" ]; then echo "pass, published by a team ($teams)"; return; fi
+      if [ "$users" -ge 2 ]; then echo "pass, $users owners on crates.io"; return; fi
+      ;;
+  esac
+  owner=$(deps_github_owner "$repo")
+  case $owner in
+    Organization\ *) echo "pass, the repository belongs to the ${owner#* } organization on GitHub" ;;
+    User\ *) echo "fail, one maintainer, and the repository belongs to the GitHub user ${owner#* }" ;;
+    *) echo "check by hand: the registry gives no maintainer count, and ${repo:-the repository} is not on GitHub" ;;
+  esac
+}
+
+# Sets usage_count and usage_label.
+usage_numbers() {
+  local name=$1 pkg=$2 raw
+  usage_count='' usage_label=''
+  case $DEPS_ECO in
+    npm)
+      raw=$(deps_http "$DEPS_NPM_DOWNLOADS/$name" 2>/dev/null || true)
+      usage_count=$(jq -r '.downloads // empty' <<<"$raw" 2>/dev/null || true)
+      usage_label='weekly downloads'
+      ;;
+    pypi)
+      raw=$(deps_http "$DEPS_PYPISTATS/$(tr 'A-Z_.' 'a-z--' <<<"$name")/recent" 2>/dev/null || true)
+      usage_count=$(jq -r '.data.last_week // empty' <<<"$raw" 2>/dev/null || true)
+      usage_label='weekly downloads'
+      ;;
+    rubygems)
+      usage_count=$(jq -r '.downloads // empty' <<<"$(rubygems_info "$name")" 2>/dev/null || true)
+      usage_label='total downloads (RubyGems has no weekly count)'
+      ;;
+    crates)
+      usage_count=$(jq -r '.downloads // empty' <<<"$pkg")
+      usage_label='downloads in the last 90 days'
+      ;;
+    go)
+      raw=$(deps_http "$DEPS_PKGGODEV/$name" 2>/dev/null || true)
+      usage_count=$(grep -oE 'aria-label="Imported By: [0-9,]+"' <<<"$raw" | head -1 | grep -oE '[0-9,]+' | tr -d , || true)
+      usage_label='importers of the module root package on pkg.go.dev'
+      ;;
+  esac
+}
+
+# Prints the release history and health of one package. Sets pkg, summary,
+# newest, eligible and the usage variables for the caller.
+health() {
+  local name=$1 status=0 desc repo info t first count last note deprecated
+  pkg='' summary='' newest='' eligible=''
+  pkg=$(deps_package "$name") || status=$?
+  if [ $status -eq 1 ]; then field "Registry" "not found"; return 1; fi
+  if [ $status -ne 0 ]; then field "Registry" "could not be reached"; return 2; fi
+  if [ "$DEPS_ECO" = rubygems ]; then
+    info=$(rubygems_info "$name")
+    pkg=$(jq -c --argjson info "${info:-null}" '.description = ($info.info // "")
+      | .repository = ($info.source_code_uri // $info.homepage_uri // "")' <<<"$pkg")
+  fi
+  summary=$(deps_summarize <<<"$pkg")
+  desc=$(jq -r '.description // "" | gsub("\\s+"; " ") | .[0:200]' <<<"$pkg")
+  repo=$(jq -r '.repository // ""' <<<"$pkg")
+  [ -n "$desc" ] && field "Description" "$desc"
+  [ -n "$repo" ] && field "Repository" "$repo"
+
+  newest=$(jq -r '.newest.v // empty' <<<"$summary")
+  eligible=$(jq -r '.eligible.v // empty' <<<"$summary")
+  if [ -z "$newest" ]; then
+    field "Newest stable" "none: every release is a prerelease or was withdrawn"
+  else
+    t=$(jq -r '.newest.t // empty' <<<"$summary")
+    if [ -n "$t" ]; then field "Newest stable" "$(release "$newest" "$t")"; else field "Newest stable" "$newest"; fi
+    if [ "$newest" != "$eligible" ]; then
+      if [ -n "$eligible" ]; then
+        field "Newest eligible" "$(release "$eligible" "$(jq -r '.eligible.t' <<<"$summary")") (the newest is under $DEPS_MIN_AGE_DAYS days old)"
+      else
+        field "Newest eligible" "none: no stable release is at least $DEPS_MIN_AGE_DAYS days old"
+      fi
+    fi
+    deprecated=$(jq -r --arg v "$newest" '.versions[] | select(.v == $v) | .deprecated // empty' <<<"$pkg")
+    [ -n "$deprecated" ] && field "Deprecated" "$deprecated"
+  fi
+
+  last=$(jq -r '.last.t // empty' <<<"$summary")
+  if [ -n "$last" ]; then
+    note=$(deps_finished_note "$name")
+    if [ "$last" -ge "$stale_before" ]; then
+      field "Release in last year" "pass, last stable release $(deps_date "$last")"
+    elif [ -n "$note" ]; then
+      field "Release in last year" "pass as a finished library ($note); last stable release $(deps_date "$last")"
+    else
+      field "Release in last year" "fail, last stable release $(deps_date "$last")"
+    fi
+  fi
+  first=$(jq -r '.first.t // empty' <<<"$summary")
+  if [ -n "$first" ]; then
+    if [ "$first" -le "$history_before" ]; then
+      field "First stable release" "pass, $(deps_date "$first") (at least 2 years ago)"
+    else
+      field "First stable release" "fail, $(deps_date "$first") (less than 2 years ago)"
+    fi
+  fi
+  count=$(jq -r '.count' <<<"$summary")
+  if [ "$count" -ge "$DEPS_MIN_RELEASES" ]; then
+    field "Stable releases" "pass, $count"
+  else
+    field "Stable releases" "fail, $count (fewer than $DEPS_MIN_RELEASES)"
+  fi
+  field "Publisher" "$(publisher "$name" "$pkg")"
+  usage_numbers "$name" "$pkg"
+  if [ -n "$usage_count" ]; then
+    field "Usage" "$(deps_commas "$usage_count") $usage_label"
+  else
+    field "Usage" "not available"
+  fi
+}
+
+# What the project and its other dependencies ask for. Used to find what holds
+# a package back.
+dependents() {
+  local name=$1
+  case $DEPS_PM in
+    npm) deps_run npm explain "$name" 2>&1 || true ;;
+    pnpm) deps_run pnpm why "$name" 2>&1 || true ;;
+    bun) deps_run bun why "$name" 2>&1 || true ;;
+    uv) deps_run uv tree --invert --package "$name" --frozen 2>&1 || true ;;
+    bundler)
+      awk -v n="$name" '
+        /^GEM$/ { g = 1; next }
+        /^[A-Z]/ { g = 0 }
+        g && /^    [^ ]/ { parent = $1 " " $2 }
+        g && /^      [^ ]/ && $1 == n { c = $0; sub(/^ +/, "", c); print parent " requires " c }' Gemfile.lock
+      ;;
+    cargo) deps_run cargo tree --invert "$name" --edges normal,build,dev 2>&1 || true ;;
+    go) { deps_run go mod graph 2>&1 || true; } | awk -v n="$name" '{ split($2, a, "@"); if (a[1] == n) print $1 " requires " $2 }' ;;
+  esac
+}
+
+manifest_constraint() {
+  local name=$1
+  case $DEPS_PM in
+    npm | pnpm | bun)
+      jq -r --arg n "$name" '[.dependencies, .devDependencies, .optionalDependencies, .peerDependencies]
+        | map(select(. != null) | .[$n] // empty) | .[] | "package.json asks for \(.)"' package.json
+      ;;
+    *) grep -nE "(^|[^A-Za-z0-9_.-])$(deps_regex_escape "$name")([^A-Za-z0-9_.-]|$)" "$DEPS_MANIFEST" | sed "s|^|$DEPS_MANIFEST line |" || true ;;
+  esac
+}
+
+# What a specific release needs from the runtime and from other packages.
+requirements() {
+  local name=$1 version=$2 raw
+  case $DEPS_ECO in
+    npm)
+      raw=$(deps_http "$DEPS_NPM_REGISTRY/$(deps_npm_path "$name")/$version" 2>/dev/null || true)
+      jq -r '[(.engines // {} | to_entries[] | "engine \(.key) \(.value)"),
+              (.peerDependencies // {} | to_entries[] | "peer \(.key) \(.value)")] | .[]' <<<"$raw" 2>/dev/null || true
+      ;;
+    pypi)
+      raw=$(deps_http "$DEPS_PYPI/$name/$version/json" 2>/dev/null || true)
+      jq -r '.info | ("python " + (.requires_python // "any")), ((.requires_dist // [])[] | select(test("extra ==") | not))' <<<"$raw" 2>/dev/null || true
+      ;;
+    rubygems) jq -r --arg v "$version" '.versions[] | select(.v == $v) | "ruby " + (.ruby // "any")' <<<"$pkg" ;;
+    crates)
+      raw=$(deps_http "$DEPS_CRATES/crates/$name/$version" 2>/dev/null || true)
+      jq -r '"rust " + (.version.rust_version // "any")' <<<"$raw" 2>/dev/null || true
+      ;;
+    go)
+      deps_http "$DEPS_GOPROXY/$(deps_go_escape "$name")/@v/$version.mod" 2>/dev/null | grep -E '^(go|toolchain) ' || true
+      ;;
+  esac
+}
+
+osv_ids() {
+  local name=$1 version=$2 body
+  [ "$DEPS_ECO" = go ] && version=${version#v}
+  body=$(jq -cn --arg n "$name" --arg e "$osv_ecosystem" --arg v "$version" '{package: {name: $n, ecosystem: $e}, version: $v}')
+  deps_http "$DEPS_OSV/query" "$body" | jq -r '.vulns[]? | "\(.id)\t\(.published[0:10])\t\(.summary // (.details // "" | .[0:100]))"'
+}
+
+security() {
+  local name=$1 base=$2 newest=$3 base_ids newest_ids fixed repo notes tag found=''
+  echo
+  echo "Security fixes in $newest, which is under $DEPS_MIN_AGE_DAYS days old:"
+  if ! base_ids=$(osv_ids "$name" "$base") || ! newest_ids=$(osv_ids "$name" "$newest"); then
+    echo "  Could not reach OSV (api.osv.dev)."
+  else
+    fixed=$(awk -F'\t' 'NR == FNR { seen[$1] = 1; next } !($1 in seen)' <(printf '%s\n' "$newest_ids") <(printf '%s\n' "$base_ids") | grep . || true)
+    if [ -n "$fixed" ]; then
+      echo "  Advisories in OSV that affect $base and not $newest:"
+      while IFS=$'\t' read -r id published text; do
+        echo "    $id, published $published: $text"
+      done <<<"$fixed"
+    else
+      echo "  No advisory in OSV affects $base and not $newest."
+    fi
+  fi
+  repo=$(jq -r '.repository // ""' <<<"$pkg")
+  if [[ $repo =~ github\.com[/:]([^/]+)/([^/.#]+) ]]; then
+    for tag in "v$newest" "$newest" "$name@$newest"; do
+      notes=$(deps_http "$DEPS_GITHUB_API/repos/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/releases/tags/$tag" 2>/dev/null | jq -r '.body // ""' 2>/dev/null || true)
+      [ -n "$notes" ] && { found=1; break; }
+    done
+    if [ -n "$found" ]; then
+      notes=$(grep -iE 'security|vulnerab|compromis|malicious|malware|CVE-[0-9]|GHSA-' <<<"$notes" | head -5 || true)
+      if [ -n "$notes" ]; then
+        echo "  The release notes for $newest mention security. No advisory confirms this unless one is listed above:"
+        sed 's/^/    /' <<<"$notes"
+      else
+        echo "  The release notes for $newest do not mention security."
+      fi
+    else
+      echo "  No GitHub release notes found for $newest."
+    fi
+  fi
+}
+
+package_names_line() { tr '\n' ' ' | sed 's/ $//; s/ /, /g'; }
+
+section() {
+  echo
+  echo "== $1 ($DEPS_PM) =="
+}
+
+section "$name"
+status=0
+health "$name" || status=$?
+[ $status -eq 0 ] || exit $status
+main_pkg=$pkg
+main_newest=$newest
+main_eligible=$eligible
+
+installed=$(deps_installed_version "$name" 2>/dev/null || true)
+if [ -n "$installed" ]; then
+  if deps_is_direct "$name"; then field "Installed" "$installed (direct dependency)"; else field "Installed" "$installed (indirect dependency only)"; fi
+else
+  field "Installed" "no"
+fi
+
+if [ -n "$main_newest" ] && [ "$main_newest" != "$main_eligible" ]; then
+  security "$name" "${installed:-${main_eligible:-$main_newest}}" "$main_newest"
+fi
+
+if [ -n "$installed" ] && [ -n "$main_eligible" ] && [ "$installed" != "$main_eligible" ] && [ $removing -eq 0 ]; then
+  echo
+  echo "Installed $installed is not the newest eligible release, $main_eligible. What holds it back:"
+  manifest_constraint "$name" | sed 's/^/  /'
+  dependents "$name" | head -40 | sed 's/^/  /'
+  echo "  $main_eligible needs:"
+  requirements "$name" "$main_eligible" | head -20 | sed 's/^/    /'
+fi
+
+if ! deps_is_direct "$name" && [ $removing -eq 0 ]; then
+  echo
+  echo "Already installed, for the overlap check (the standard library counts too):"
+  while read -r direct; do
+    [ -z "$direct" ] && continue
+    if [ "$DEPS_ECO" = rubygems ]; then
+      desc=$(rubygems_info "$direct" | jq -r '.info // ""' 2>/dev/null || true)
+    else
+      desc=$({ deps_cached_package "$direct" || deps_fetch_package "$direct" 2>/dev/null || true; } | jq -r '.description // ""' 2>/dev/null || true)
+    fi
+    desc=$(jq -rn --arg d "$desc" '$d | gsub("\\s+"; " ") | .[0:200]')
+    echo "  - $direct${desc:+: $desc}"
+  done < <(deps_direct)
+  indirect=$(deps_installed_all 2>/dev/null | awk '{ print $1 }' | sort -u | grep -vxF -f <(deps_direct) | package_names_line || true)
+  [ -n "$indirect" ] && echo "  Indirect: $indirect"
+fi
+
+if [ -n "$candidates" ]; then
+  rows=()
+  usage_numbers "$name" "$main_pkg"
+  rows+=("$name	${usage_count:-0}")
+  for candidate in $(tr ',' ' ' <<<"$candidates"); do
+    section "$candidate"
+    status=0
+    health "$candidate" || status=$?
+    [ $status -eq 0 ] && rows+=("$candidate	${usage_count:-0}")
+  done
+  echo
+  echo "Usage compared with the most used candidate ($usage_label, at least 10% of the top one passes):"
+  top=$(printf '%s\n' "${rows[@]}" | awk -F'\t' '$2 > m { m = $2 } END { print m + 0 }')
+  printf '%s\n' "${rows[@]}" | sort -t$'\t' -k2,2nr | while IFS=$'\t' read -r candidate count; do
+    if [ "$top" -gt 0 ]; then percent=$((count * 100 / top)); else percent=0; fi
+    if [ "$percent" -ge 10 ]; then verdict=pass; else verdict=fail; fi
+    printf '  %-30s %15s  %3d%%  %s\n' "$candidate" "$(deps_commas "$count")" "$percent" "$verdict"
+  done
+fi
+
+if [ $removing -eq 1 ]; then
+  echo
+  echo "Direct dependencies that are behind and whose dependency chain includes $name, so removing it may let them move up (confirm with the dependency chain for each):"
+  found=0
+  while read -r direct; do
+    [ -z "$direct" ] || [ "$direct" = "$name" ] && continue
+    current=$(deps_installed_version "$direct" 2>/dev/null || true)
+    [ -z "$current" ] && continue
+    status=0
+    other=$(deps_package "$direct" 2>/dev/null) || status=$?
+    [ $status -eq 0 ] || continue
+    best=$(deps_summarize <<<"$other" | jq -r '.eligible.v // empty')
+    [ -n "$best" ] && deps_version_gt "$best" "$current" || continue
+    if dependents "$direct" | grep -qF -- "$name"; then
+      echo "  - $direct: installed $current, newest eligible $best"
+      found=1
+    fi
+  done < <(deps_direct)
+  [ $found -eq 1 ] || echo "  None."
+fi

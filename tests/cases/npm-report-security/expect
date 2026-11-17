@@ -1,0 +1,10 @@
+Newest stable:         4.4.3, published 2025-09-13
+Newest eligible:       4.4.1, published 2025-05-13
+Security fixes in 4.4.3, which is under 3 days old:
+No advisory in OSV affects 4.3.4 and not 4.4.3.
+The release notes for 4.4.3 mention security. No advisory confirms this unless one is listed above:
+Version `4.4.2` is **compromised**.
+Installed 4.3.4 is not the newest eligible release, 4.4.1. What holds it back:
+package.json asks for ^4.3.4
+debug@"^4.3.4" from the root project
+engine node >=6.0

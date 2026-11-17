@@ -1,0 +1,24 @@
+{
+  "lockfileVersion": 1,
+  "workspaces": {
+    "": {
+      "name": "npmp",
+      "dependencies": {
+        "debug": "^4.3.4",
+        "ms": "^2.1.3",
+      },
+      "devDependencies": {
+        "@types/ms": "^0.7.34",
+      },
+    },
+  },
+  "packages": {
+    "@types/ms": ["@types/ms@0.7.34", "", {}, "sha512-x"],
+
+    "debug": ["debug@4.3.4", "", { "dependencies": { "ms": "2.1.2" } }, "sha512-x"],
+
+    "ms": ["ms@2.1.3", "", {}, "sha512-x"],
+
+    "debug/ms": ["ms@2.1.2", "", {}, "sha512-x"],
+  }
+}

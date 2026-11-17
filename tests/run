@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# Tests for the dependency scripts in skills/new-project/references/scripts,
+# run against saved registry responses so no test touches the network.
+#
+#   tests/run           run every case
+#   tests/run <case>    run the named cases
+#
+# Each case in tests/cases/<case>/ has:
+#   project/   files copied into a fresh project folder
+#   case       settings: fixtures=<set in tests/fixtures>, now=<ISO time>
+#   commands   one command per line, run in order from the project folder;
+#              a line starting with "offline " runs with no saved responses
+#   stdin      optional input for the last command
+#   expect     lines the last command's output must contain; a line starting
+#              with "! " must not appear; "exit <n>" sets the expected exit code
+#
+# To add or refresh fixtures, run a script in a real project with
+# DEPS_RECORD=<dir>, which saves every response and package manager output
+# under <dir>/http and <dir>/cmd. Copy them into tests/fixtures/<set>, trimming
+# large registry documents to the fields the scripts read, and set "now" in the
+# case to a time just after the recording so results do not drift.
+set -euo pipefail
+
+root=$(cd "$(dirname "$0")/.." && pwd)
+scripts=$root/skills/new-project/references/scripts
+empty=$(mktemp -d)
+trap 'rm -rf "$empty"' EXIT
+
+cases=("$@")
+if [ ${#cases[@]} -eq 0 ]; then
+  for dir in "$root"/tests/cases/*/; do cases+=("$(basename "$dir")"); done
+fi
+
+failed=0
+for name in "${cases[@]}"; do
+  dir=$root/tests/cases/$name
+  fixtures='' now=''
+  while IFS='=' read -r key value; do
+    case $key in
+      fixtures) fixtures=$root/tests/fixtures/$value ;;
+      now) now=$(jq -rn --arg d "$value" '$d | fromdateiso8601') ;;
+    esac
+  done <"$dir/case"
+
+  project=$(mktemp -d)
+  cp -R "$dir/project/." "$project/"
+  mkdir -p "$project/bin/lib"
+  cp "$scripts/check-dependencies" "$scripts/dependency-report" "$project/bin/"
+  cp "$scripts/lib/dependencies.bash" "$project/bin/lib/"
+
+  output='' status=0
+  while IFS= read -r command; do
+    [ -z "$command" ] && continue
+    responses=$fixtures
+    case $command in offline\ *) responses=$empty command=${command#offline } ;; esac
+    input=/dev/null
+    [ -f "$dir/stdin" ] && input=$dir/stdin
+    status=0
+    output=$(cd "$project" && DEPS_FIXTURES=$responses DEPS_NOW=$now DEPS_CACHE=$project/.dependency-cache \
+      bash -c "$command" <"$input" 2>&1) || status=$?
+  done <"$dir/commands"
+
+  problems=()
+  expected_status=0
+  while IFS= read -r line; do
+    case $line in
+      '') ;;
+      exit\ *) expected_status=${line#exit } ;;
+      '! '*) if grep -qF -- "${line#! }" <<<"$output"; then problems+=("unexpected: ${line#! }"); fi ;;
+      *) if ! grep -qF -- "$line" <<<"$output"; then problems+=("missing: $line"); fi ;;
+    esac
+  done <"$dir/expect"
+  [ "$status" = "$expected_status" ] || problems+=("exit code $status, expected $expected_status")
+
+  if [ ${#problems[@]} -eq 0 ]; then
+    echo "pass  $name"
+  else
+    failed=1
+    echo "FAIL  $name"
+    printf '        %s\n' "${problems[@]}"
+    echo "      output:"
+    sed 's/^/        | /' <<<"$output"
+  fi
+  rm -rf "$project"
+done
+
+exit $failed

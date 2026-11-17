@@ -1,0 +1,241 @@
+#!/usr/bin/env bash
+# Checks every installed package against the rules in the dependencies skill
+# (.agents/skills/dependencies/SKILL.md).
+#
+# Fails on:
+#   - a prerelease (release candidate, beta, alpha, nightly and so on)
+#   - a release published less than 3 days ago
+# unless bin/check-dependencies.allow lists it. This covers indirect
+# dependencies too.
+#
+# Warns about:
+#   - a direct dependency with no stable release in the last year, unless a
+#     "finished library" note covers it
+#   - notes in package-json-comments.md that no longer match package.json
+#   - exceptions in bin/check-dependencies.allow that are past their date
+#
+#   bin/check-dependencies          check everything, exit 1 on a failure
+#   bin/check-dependencies --hook   run as a Claude Code PostToolUse hook: skip
+#                                   tool calls that cannot change dependencies,
+#                                   check failures only, and exit 2 so the
+#                                   agent sees them
+#
+# Publish dates are cached in .dependency-cache/, so only new versions need the
+# network. Offline, the check passes only if the dependency files are unchanged
+# since the last time it passed.
+#
+# An exception the user approved goes in bin/check-dependencies.allow, one line
+# per package: "<name>@<version>  <reason>  <YYYY-MM-DD it can be removed>".
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+# shellcheck source=lib/dependencies.bash
+. bin/lib/dependencies.bash
+
+HOOK_PATTERN='package(-lock)?\.json|pnpm-lock\.yaml|bun\.lock|uv\.lock|pyproject\.toml|Gemfile|Cargo\.(toml|lock)|go\.(mod|sum)|check-dependencies\.allow|(npm|pnpm|bun|yarn) (add|install|i|remove|rm|uninstall|update|up|upgrade)|uv (add|remove|lock|sync)|bundle (add|install|update|remove|lock)|cargo (add|remove|update)|go (get|mod|work)'
+
+hook=0
+failure_exit=1
+if [ "${1:-}" = "--hook" ]; then
+  hook=1
+  failure_exit=2
+  grep -qE "$HOOK_PATTERN" <(cat) || exit 0
+fi
+
+deps_detect || exit "$failure_exit"
+
+cache=$(deps_cache_dir)
+mkdir -p "$cache"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+fingerprint=$(for f in "$DEPS_MANIFEST" "$DEPS_LOCK" "$DEPS_ALLOW_FILE" "$DEPS_COMMENTS_FILE"; do
+  if [ -f "$f" ]; then echo "== $f"; cat "$f"; fi
+done | cksum)
+last_pass=$(cat "$cache/last-pass" 2>/dev/null || true)
+
+problems=()
+warnings=()
+unreachable=()
+skipped_warnings=0
+
+is_allowed() {
+  [ -f "$DEPS_ALLOW_FILE" ] && awk '!/^#/ && NF { print $1 }' "$DEPS_ALLOW_FILE" | grep -qxF -- "$1"
+}
+
+cached_time() {
+  { deps_cached_package "$1" || true; } |
+    jq -r --arg v "$2" 'first(.versions[] | select(.v == $v) | .t) // empty' 2>/dev/null || true
+}
+
+if ! deps_installed_all >"$work/installed" 2>"$work/installed.err"; then
+  problems+=("could not list the installed packages: $(head -3 "$work/installed.err")")
+fi
+
+# Fetch release histories this cache has not seen yet, 8 at a time.
+if [ "$DEPS_ECO" != go ]; then
+  while read -r name version _; do
+    is_allowed "$name@$version" && continue
+    if [ -z "$(cached_time "$name" "$version")" ]; then echo "$name"; fi
+  done <"$work/installed" | sort -u >"$work/needed"
+  : >"$work/failed"
+  count=0
+  while read -r name; do
+    (
+      status=0
+      deps_fetch_package "$name" >/dev/null 2>&1 || status=$?
+      [ $status -eq 0 ] || echo "$name $status" >>"$work/failed"
+    ) &
+    count=$((count + 1))
+    if [ $((count % 8)) -eq 0 ]; then wait; fi
+  done <"$work/needed"
+  wait
+fi
+
+cutoff=$(deps_cutoff)
+total=0
+while read -r name version listed_time; do
+  [ -z "${version:-}" ] && continue
+  total=$((total + 1))
+  is_allowed "$name@$version" && continue
+
+  pre=$(deps_prerelease_part "$version")
+  if [ -n "$pre" ]; then
+    problems+=("$name $version is a prerelease ($pre); use the newest stable release")
+  fi
+
+  if [ "$DEPS_ECO" = go ]; then
+    published=${listed_time:-}
+    if [ -z "$published" ]; then
+      problems+=("$name $version has no publish time; run go mod download and try again")
+      continue
+    fi
+  else
+    published=$(cached_time "$name" "$version")
+    if [ -z "$published" ]; then
+      if grep -q "^$(deps_regex_escape "$name") 2$" "$work/failed"; then
+        unreachable+=("$name $version")
+      else
+        problems+=("$name $version was not found on the registry, so its publish date cannot be checked")
+      fi
+      continue
+    fi
+  fi
+
+  if [ "$published" -gt "$cutoff" ]; then
+    problems+=("$name $version was published $(deps_date "$published"), less than $DEPS_MIN_AGE_DAYS days ago; use the newest release that is at least $DEPS_MIN_AGE_DAYS days old, or ask the user for an exception (this one is allowed from $(deps_date $((published + DEPS_MIN_AGE_DAYS * 86400))))")
+  fi
+done <"$work/installed"
+
+# The date of the last stable release of a direct dependency, refreshed from
+# the registry only when the cached copy suggests it is more than a year old.
+last_release() {
+  local name=$1 file latest t status=0
+  if [ "$DEPS_ECO" = go ]; then
+    file="$cache/go-latest/$(deps_key "$name")"
+    t=$(cat "$file" 2>/dev/null || true)
+    if [ -z "$t" ] || [ "$t" -lt "$stale_before" ]; then
+      latest=$(deps_http "$DEPS_GOPROXY/$(deps_go_escape "$name")/@latest") || status=$?
+      if [ $status -ne 0 ]; then
+        [ -n "$t" ] && echo "$t"
+        return $status
+      fi
+      t=$(jq -r "$DEPS_JQ_DEFS"'.Time | ts' <<<"$latest")
+      mkdir -p "$cache/go-latest"
+      echo "$t" >"$file"
+    fi
+    echo "$t"
+    return 0
+  fi
+  t=$({ deps_cached_package "$name" || true; } | deps_summarize 2>/dev/null | jq -r '.last.t // empty' || true)
+  if [ -z "$t" ] || [ "$t" -lt "$stale_before" ]; then
+    latest=$(deps_fetch_package "$name") || status=$?
+    if [ $status -ne 0 ]; then
+      [ -n "$t" ] && echo "$t"
+      return $status
+    fi
+    t=$(deps_summarize <<<"$latest" | jq -r '.last.t // empty')
+  fi
+  echo "$t"
+}
+
+if [ $hook -eq 0 ]; then
+  stale_before=$(($(deps_now) - DEPS_STALE_DAYS * 86400))
+  while read -r name; do
+    [ -z "$name" ] && continue
+    status=0
+    t=$(last_release "$name") || status=$?
+    if [ $status -eq 2 ] && [ -z "$t" ]; then
+      skipped_warnings=1
+      continue
+    fi
+    [ -z "$t" ] && continue
+    if [ "$t" -lt "$stale_before" ] && [ -z "$(deps_finished_note "$name")" ]; then
+      warnings+=("$name has had no stable release since $(deps_date "$t"), more than a year ago; look for a maintained alternative with bin/dependency-report, or add a finished library note if it is complete (see the dependencies skill)")
+    fi
+  done < <(deps_direct)
+
+  if [ -f "$DEPS_COMMENTS_FILE" ]; then
+    directs=$(deps_direct)
+    note_pattern='^- `([^`]+)`( \(line ([0-9]+)\))?'
+    while IFS= read -r line; do
+      [[ $line =~ $note_pattern ]] || continue
+      name=${BASH_REMATCH[1]}
+      line_number=${BASH_REMATCH[3]}
+      if ! grep -qxF -- "$name" <<<"$directs"; then
+        warnings+=("$DEPS_COMMENTS_FILE has a note for $name, which is no longer in package.json; remove the note")
+      elif [ -n "$line_number" ] && ! sed -n "${line_number}p" package.json | grep -qF "\"$name\""; then
+        warnings+=("$DEPS_COMMENTS_FILE says $name is on line $line_number of package.json, but it is not; update the line number")
+      fi
+    done <"$DEPS_COMMENTS_FILE"
+  fi
+
+  if [ -f "$DEPS_ALLOW_FILE" ]; then
+    today=$(deps_date "$(deps_now)")
+    while read -r entry rest; do
+      case $entry in '' | '#'*) continue ;; esac
+      until=$(grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$' <<<"$rest" | tr -d '[:space:]' || true)
+      if [ -n "$until" ] && ! [[ $today < $until ]]; then
+        warnings+=("the exception for $entry in $DEPS_ALLOW_FILE could be removed from $until; remove it if that version is now old enough")
+      fi
+    done <"$DEPS_ALLOW_FILE"
+  fi
+fi
+
+if [ ${#unreachable[@]} -gt 0 ]; then
+  if [ "$fingerprint" = "$last_pass" ]; then
+    echo "Could not reach the registry, but the dependency files have not changed since the last passing check."
+    exit 0
+  fi
+  if [ -n "$last_pass" ]; then
+    reason="the dependency files changed since the last passing check"
+  else
+    reason="there is no earlier passing check to rely on"
+  fi
+  problems+=("could not reach the registry to check ${#unreachable[@]} packages, and $reason: $(printf '%s, ' "${unreachable[@]}" | sed 's/, $//')")
+fi
+
+print_list() {
+  local heading=$1
+  shift
+  echo "$heading"
+  printf '  - %s\n' "$@"
+}
+
+if [ ${#problems[@]} -gt 0 ]; then
+  {
+    print_list "Dependency check failed (see .agents/skills/dependencies/SKILL.md):" "${problems[@]}"
+    if [ ${#warnings[@]} -gt 0 ]; then print_list "Warnings:" "${warnings[@]}"; fi
+  } >&2
+  exit "$failure_exit"
+fi
+
+echo "$fingerprint" >"$cache/last-pass"
+[ $hook -eq 1 ] && exit 0
+
+echo "Dependency check passed for $total packages."
+if [ ${#warnings[@]} -gt 0 ]; then print_list "Warnings:" "${warnings[@]}"; fi
+if [ $skipped_warnings -eq 1 ]; then
+  echo "Could not reach the registry, so the check for releases in the last year was skipped for some packages."
+fi
+exit 0

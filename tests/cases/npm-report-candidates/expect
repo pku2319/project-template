@@ -1,0 +1,9 @@
+== dayjs (npm) ==
+Installed:             no
+- ms: Tiny millisecond conversion utility
+== date-fns (npm) ==
+Publisher:             pass, the repository belongs to the date-fns organization on GitHub
+== luxon (npm) ==
+Release in last year:  fail, last stable release 2025-09-05
+date-fns                           120,098,661  100%  pass
+luxon                               58,908,249   49%  pass

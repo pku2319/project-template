@@ -1,0 +1,4 @@
+exit 1
+ms 3.0.0-canary.1 is a prerelease (canary.1)
+@types/node 26.6.6 was published 2026-10-28, less than 3 days ago
+this one is allowed from 2026-10-31

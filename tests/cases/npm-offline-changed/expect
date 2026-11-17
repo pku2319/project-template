@@ -1,0 +1,2 @@
+exit 1
+could not reach the registry to check 4 packages, and the dependency files changed since the last passing check

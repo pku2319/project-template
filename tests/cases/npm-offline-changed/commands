@@ -1,0 +1,4 @@
+bin/check-dependencies
+rm -rf .dependency-cache/packages
+echo >> package.json
+offline bin/check-dependencies

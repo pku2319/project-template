@@ -1,0 +1,7 @@
+Newest stable:         v0.44.0, published 2026-11-09
+Stable releases:       pass, 52
+Publisher:             check by hand: the registry gives no maintainer count, and https://go.googlesource.com/text is not on GitHub
+importers of the module root package on pkg.go.dev
+go.mod line 7:	golang.org/x/text v0.3.8
+gop requires golang.org/x/text@v0.3.8
+go 1.26.0

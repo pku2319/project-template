@@ -1,0 +1,8 @@
+[package]
+name = "cargop"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+itoa = "1.0.19"
+lazy_static = "1.4.0" # finished library: lazy_static, superseded by std::sync::LazyLock but complete

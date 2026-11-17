@@ -1,0 +1,7 @@
+Newest stable:         3.20, published 2026-09-17
+Release in last year:  pass, last stable release 2026-09-17
+Publisher:             fail, one maintainer, and the repository belongs to the GitHub user kjd
+Installed:             3.6 (direct dependency)
+Installed 3.6 is not the newest eligible release, 3.20. What holds it back:
+pyproject.toml line 11:    "idna==3.6",
+python >=3.9

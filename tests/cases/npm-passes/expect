@@ -1,0 +1,4 @@
+Dependency check passed for 4 packages.
+debug has had no stable release since 2025-09-13
+! - ms has had no stable release
+package-json-comments.md has a note for left-pad, which is no longer in package.json

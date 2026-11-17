@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@types/node": "^26.6.6",
+    "debug": "^4.3.4",
+    "ms": "^3.0.0-canary.1"
+  },
+  "devDependencies": {
+    "@types/ms": "^0.7.34"
+  }
+}
+

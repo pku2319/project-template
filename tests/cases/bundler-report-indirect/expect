@@ -1,0 +1,7 @@
+Description:           Racc is an LALR(1) parser generator. It is written in Ruby itself
+Release in last year:  fail, last stable release 2024-07-30
+Publisher:             pass, 6 owners on RubyGems
+total downloads (RubyGems has no weekly count)
+Installed:             1.8.1 (indirect dependency only)
+- rake: Rake is a Make-like program implemented in Ruby
+Indirect: mini_portile2, racc
