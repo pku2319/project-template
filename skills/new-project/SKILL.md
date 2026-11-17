@@ -19,7 +19,7 @@ The run is long, so the user should always know where they are and how much is l
 
 ## Placeholders
 
-Templates contain `{{UPPER_SNAKE}}` placeholders. Fill every one with real, project specific content. A placeholder you cannot fill means phase 1 missed a question: ask rather than guess, then add that question to phase 1 of this skill so future runs gather it up front. Before each commit, run `grep -rn '{{' AGENTS.md README.md bin/setup .agents/` in the project (skip any file not created yet); it must return nothing.
+Templates contain `{{UPPER_SNAKE}}` placeholders. Fill every one with real, project specific content. `{{TEMPLATE_VERSION}}` is the exception: fill it with the contents of the `VERSION` file next to this one, so each project records which version of this skill made it. A placeholder you cannot fill means phase 1 missed a question: ask rather than guess, then add that question to phase 1 of this skill so future runs gather it up front. Before each commit, run `grep -rn '{{' AGENTS.md README.md bin/setup .agents/` in the project (skip any file not created yet); it must return nothing.
 
 Write all generated text in line with the Communication Style section of the AGENTS.md template: no coined hyphenated compound modifiers, plain prose instead.
 

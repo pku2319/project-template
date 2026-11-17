@@ -41,4 +41,4 @@ Coming soon: the testing suite is added in the next setup step.
 
 ---
 
-Built using skill [project-template](https://github.com/pku2319/project-template) by [@pku2319](https://github.com/pku2319)
+Built using skill [project-template](https://github.com/pku2319/project-template) version {{TEMPLATE_VERSION}} by [@pku2319](https://github.com/pku2319)

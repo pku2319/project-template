@@ -5,5 +5,5 @@ future upgrades can tell deliberate choices from accidents. Add new entries at
 the bottom, dated, and never rewrite old ones: if a decision is reversed, add an
 entry saying so.
 
-{{CREATION_DATE}}  Project created
+{{CREATION_DATE}}  Project created with project-template version {{TEMPLATE_VERSION}}
 {{CREATION_LOG}}

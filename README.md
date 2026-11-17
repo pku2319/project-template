@@ -43,7 +43,7 @@ Note: It does not create a remote, and it does not write into an existing folder
 - Stable releases only. No release candidates, betas or nightlies unless you ask for one and confirm.
 - Nothing published in the last 3 days, including indirect dependencies, because compromised releases are usually pulled within a few days. Where the package manager has a release age setting (npm, pnpm, Bun, uv, Bundler, and Cargo from 1.100), it is saved in the project's config files, so it keeps applying to every library added later. Every project also gets a `bin/check-dependencies` script that checks the rule for every installed package, run by `check` and by a Claude Code hook whenever dependencies change. For Go, which has no such setting, it is the only check. Offline, it passes only if the dependency files are unchanged since it last passed. It will note when a release is being gated by the 3 day rule during the QA phase and in the decision log.
 - Only language and framework versions that are still officially supported will be given as options based on a search the time of the run.
-- `AGENTS.md` for coding agents and `README.md` for people.
+- `AGENTS.md` for coding agents and `README.md` for people. The README credit line and the decision log record which version of this skill made the project; see `CHANGELOG.md` for what changed between versions.
 - A `bin/setup` script that checks system tools, installs project dependencies and verifies the result. It is safe to run again.
 - An `install` skill that runs `bin/setup` and keeps it current, plus a decision log recording what was chosen and why.
 - A `dependencies` skill for adding, upgrading and removing libraries later:
